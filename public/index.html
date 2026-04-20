@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="RideShare - Modern carpooling platform. Share rides, save money, reduce carbon footprint.">
+  <title>RideShare — Carpooling Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-container">
+      <a href="#/" class="nav-logo">
+        <span class="logo-icon">🚗</span>
+        <span class="logo-text">Ride<span class="logo-accent">Share</span></span>
+      </a>
+      <div class="nav-links" id="navLinks">
+        <a href="#/" class="nav-link" data-page="home">Home</a>
+        <a href="#/find" class="nav-link" data-page="find">Find Ride</a>
+        <a href="#/create" class="nav-link auth-only" data-page="create">Offer Ride</a>
+        <a href="#/dashboard" class="nav-link auth-only" data-page="dashboard">Dashboard</a>
+      </div>
+      <div class="nav-actions">
+        <div class="nav-auth guest-only">
+          <a href="#/login" class="btn btn-ghost" id="navLogin">Log In</a>
+          <a href="#/signup" class="btn btn-primary btn-sm" id="navSignup">Sign Up</a>
+        </div>
+        <div class="nav-user auth-only" id="navUser">
+          <div class="user-menu" id="userMenu">
+            <div class="user-avatar" id="userAvatar">
+              <span id="userInitial">U</span>
+            </div>
+            <div class="dropdown" id="userDropdown">
+              <a href="#/profile" class="dropdown-item">👤 Profile</a>
+              <a href="#/dashboard" class="dropdown-item">📊 Dashboard</a>
+              <a href="#/cars" class="dropdown-item">🚙 My Cars</a>
+              <div class="dropdown-divider"></div>
+              <a href="#" class="dropdown-item" id="logoutBtn">🚪 Logout</a>
+            </div>
+          </div>
+        </div>
+        <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Main Content -->
+  <main class="main" id="mainContent">
+
+    <!-- HOME PAGE -->
+    <section class="page" id="page-home">
+      <div class="hero">
+        <div class="hero-bg"></div>
+        <div class="hero-content">
+          <div class="hero-badge">🌍 Eco-Friendly Travel</div>
+          <h1 class="hero-title">Share the Ride,<br><span class="gradient-text">Share the Journey</span></h1>
+          <p class="hero-subtitle">Connect with fellow travelers heading your way. Save money, reduce emissions, and make new friends on every trip.</p>
+          <div class="hero-actions">
+            <a href="#/find" class="btn btn-primary btn-lg">
+              <span>🔍</span> Find a Ride
+            </a>
+            <a href="#/create" class="btn btn-outline btn-lg">
+              <span>➕</span> Offer a Ride
+            </a>
+          </div>
+          <div class="hero-stats">
+            <div class="stat-item">
+              <span class="stat-number" data-count="2500">0</span>
+              <span class="stat-label">Active Rides</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-number" data-count="8400">0</span>
+              <span class="stat-label">Happy Users</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-number" data-count="15000">0</span>
+              <span class="stat-label">CO₂ kg Saved</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="features-section">
+        <div class="container">
+          <h2 class="section-title">How It Works</h2>
+          <div class="features-grid">
+            <div class="feature-card">
+              <div class="feature-icon">📝</div>
+              <h3>Create Account</h3>
+              <p>Sign up in seconds and set up your profile with your car details.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">🗺️</div>
+              <h3>Post or Find</h3>
+              <p>Offer a ride as a driver or search for rides matching your route.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">🤝</div>
+              <h3>Book & Travel</h3>
+              <p>Book a seat, meet your co-travelers, and enjoy the journey together.</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">⭐</div>
+              <h3>Rate & Review</h3>
+              <p>Share your experience and help build a trusted community.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOGIN PAGE -->
+    <section class="page" id="page-login">
+      <div class="auth-container">
+        <div class="auth-card glass-card">
+          <div class="auth-header">
+            <h2>Welcome Back</h2>
+            <p>Log in to continue your journey</p>
+          </div>
+          <form id="loginForm" class="auth-form">
+            <div class="form-group">
+              <label for="loginEmail">Email</label>
+              <input type="email" id="loginEmail" placeholder="you@example.com" required>
+            </div>
+            <div class="form-group">
+              <label for="loginPassword">Password</label>
+              <input type="password" id="loginPassword" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" id="loginSubmit">
+              <span class="btn-text">Log In</span>
+              <span class="btn-loader hidden"></span>
+            </button>
+          </form>
+          <div class="auth-footer">
+            <p>Don't have an account? <a href="#/signup">Sign Up</a></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SIGNUP PAGE -->
+    <section class="page" id="page-signup">
+      <div class="auth-container">
+        <div class="auth-card glass-card">
+          <div class="auth-header">
+            <h2>Join RideShare</h2>
+            <p>Create your account and start sharing rides</p>
+          </div>
+          <form id="signupForm" class="auth-form">
+            <div class="form-group">
+              <label for="signupName">Full Name</label>
+              <input type="text" id="signupName" placeholder="John Doe" required>
+            </div>
+            <div class="form-group">
+              <label for="signupEmail">Email</label>
+              <input type="email" id="signupEmail" placeholder="you@example.com" required>
+            </div>
+            <div class="form-group">
+              <label for="signupPhone">Phone</label>
+              <input type="tel" id="signupPhone" placeholder="+91 98765 43210">
+            </div>
+            <div class="form-group">
+              <label for="signupPassword">Password</label>
+              <input type="password" id="signupPassword" placeholder="Min. 6 characters" required minlength="6">
+            </div>
+            <button type="submit" class="btn btn-primary btn-full" id="signupSubmit">
+              <span class="btn-text">Create Account</span>
+              <span class="btn-loader hidden"></span>
+            </button>
+          </form>
+          <div class="auth-footer">
+            <p>Already have an account? <a href="#/login">Log In</a></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIND RIDE PAGE -->
+    <section class="page" id="page-find">
+      <div class="container">
+        <div class="page-header">
+          <h1>Find a <span class="gradient-text">Ride</span></h1>
+          <p>Search available rides and book your seat</p>
+        </div>
+        <div class="search-panel glass-card">
+          <form id="searchForm" class="search-form">
+            <div class="search-row">
+              <div class="form-group">
+                <label for="searchFrom">From</label>
+                <input type="text" id="searchFrom" placeholder="Starting location">
+              </div>
+              <div class="form-group">
+                <label for="searchTo">To</label>
+                <input type="text" id="searchTo" placeholder="Destination">
+              </div>
+              <div class="form-group">
+                <label for="searchDate">Date</label>
+                <input type="date" id="searchDate">
+              </div>
+              <button type="submit" class="btn btn-primary">🔍 Search</button>
+            </div>
+            <div class="search-filters">
+              <div class="filter-group">
+                <label>Sort by:</label>
+                <select id="searchSort">
+                  <option value="time_asc">Earliest First</option>
+                  <option value="time_desc">Latest First</option>
+                  <option value="price_asc">Price: Low → High</option>
+                  <option value="price_desc">Price: High → Low</option>
+                  <option value="rating">Best Rated</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label>Max Price:</label>
+                <input type="number" id="searchMaxPrice" placeholder="Any" min="0">
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="rides-grid" id="ridesGrid">
+          <div class="empty-state" id="ridesEmpty">
+            <div class="empty-icon">🔍</div>
+            <h3>Search for rides</h3>
+            <p>Enter your route and date to find available rides</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CREATE RIDE PAGE -->
+    <section class="page" id="page-create">
+      <div class="container">
+        <div class="page-header">
+          <h1>Offer a <span class="gradient-text">Ride</span></h1>
+          <p>Share your journey and help others travel</p>
+        </div>
+        <div class="create-ride-layout">
+          <div class="create-ride-form glass-card">
+            <form id="createRideForm">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="rideFrom">📍 Starting Location</label>
+                  <input type="text" id="rideFrom" placeholder="Click on map or type location" required>
+                  <input type="hidden" id="rideFromLat">
+                  <input type="hidden" id="rideFromLng">
+                </div>
+                <div class="form-group">
+                  <label for="rideTo">📍 Destination</label>
+                  <input type="text" id="rideTo" placeholder="Click on map or type location" required>
+                  <input type="hidden" id="rideToLat">
+                  <input type="hidden" id="rideToLng">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="rideDate">📅 Date & Time</label>
+                  <input type="datetime-local" id="rideDate" required>
+                </div>
+                <div class="form-group">
+                  <label for="rideCar">🚙 Select Car</label>
+                  <select id="rideCar">
+                    <option value="">No car selected</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="rideSeats">💺 Available Seats</label>
+                  <input type="number" id="rideSeats" min="1" max="10" value="3" required>
+                </div>
+                <div class="form-group">
+                  <label for="ridePrice">💰 Price per Seat (₹)</label>
+                  <input type="number" id="ridePrice" min="0" value="0" placeholder="0 = Free">
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="rideNotes">📝 Additional Notes</label>
+                <textarea id="rideNotes" rows="3" placeholder="Any extra info for passengers..."></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary btn-full btn-lg">
+                <span class="btn-text">🚀 Post Ride</span>
+                <span class="btn-loader hidden"></span>
+              </button>
+            </form>
+          </div>
+          <div class="create-ride-map glass-card">
+            <div class="map-instructions">
+              <span class="map-step active" id="mapStep">📍 Click map to set starting point</span>
+            </div>
+            <div id="createRideMap" class="map-container"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- DASHBOARD PAGE -->
+    <section class="page" id="page-dashboard">
+      <div class="container">
+        <div class="page-header">
+          <h1>Your <span class="gradient-text">Dashboard</span></h1>
+          <p>Manage your rides and bookings</p>
+        </div>
+        <div class="dashboard-stats" id="dashStats">
+          <div class="stat-card glass-card">
+            <div class="stat-card-icon">🚗</div>
+            <div class="stat-card-value" id="statPosted">0</div>
+            <div class="stat-card-label">Rides Posted</div>
+          </div>
+          <div class="stat-card glass-card">
+            <div class="stat-card-icon">🎫</div>
+            <div class="stat-card-value" id="statBooked">0</div>
+            <div class="stat-card-label">Rides Booked</div>
+          </div>
+          <div class="stat-card glass-card">
+            <div class="stat-card-icon">📅</div>
+            <div class="stat-card-value" id="statUpcoming">0</div>
+            <div class="stat-card-label">Upcoming</div>
+          </div>
+          <div class="stat-card glass-card">
+            <div class="stat-card-icon">⭐</div>
+            <div class="stat-card-value" id="statRating">-</div>
+            <div class="stat-card-label">Rating</div>
+          </div>
+        </div>
+        <div class="dashboard-tabs">
+          <button class="tab-btn active" data-tab="driver">🚗 My Rides (Driver)</button>
+          <button class="tab-btn" data-tab="passenger">🎫 My Bookings</button>
+        </div>
+        <div class="tab-content" id="driverTab">
+          <div id="driverRides" class="rides-list"></div>
+        </div>
+        <div class="tab-content hidden" id="passengerTab">
+          <div id="passengerBookings" class="rides-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIDE DETAIL PAGE -->
+    <section class="page" id="page-ride-detail">
+      <div class="container">
+        <div id="rideDetailContent"></div>
+      </div>
+    </section>
+
+    <!-- PROFILE PAGE -->
+    <section class="page" id="page-profile">
+      <div class="container">
+        <div class="page-header">
+          <h1>Your <span class="gradient-text">Profile</span></h1>
+          <p>Manage your account details</p>
+        </div>
+        <div class="profile-layout">
+          <div class="profile-card glass-card">
+            <div class="profile-avatar-section">
+              <div class="profile-avatar" id="profileAvatar">
+                <span id="profileInitial">U</span>
+              </div>
+              <label for="profilePhotoInput" class="btn btn-ghost btn-sm">📷 Change Photo</label>
+              <input type="file" id="profilePhotoInput" accept="image/*" class="hidden">
+            </div>
+            <form id="profileForm" class="auth-form">
+              <div class="form-group">
+                <label for="profileName">Full Name</label>
+                <input type="text" id="profileName" required>
+              </div>
+              <div class="form-group">
+                <label for="profileEmail">Email</label>
+                <input type="email" id="profileEmail" required>
+              </div>
+              <div class="form-group">
+                <label for="profilePhone">Phone</label>
+                <input type="tel" id="profilePhone">
+              </div>
+              <button type="submit" class="btn btn-primary btn-full">Save Changes</button>
+            </form>
+          </div>
+          <div class="profile-ratings glass-card">
+            <h3>Your Ratings</h3>
+            <div id="profileRatings"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CARS PAGE -->
+    <section class="page" id="page-cars">
+      <div class="container">
+        <div class="page-header">
+          <h1>My <span class="gradient-text">Cars</span></h1>
+          <p>Manage your vehicles</p>
+        </div>
+        <div class="cars-section">
+          <div class="add-car-form glass-card">
+            <h3>Add New Car</h3>
+            <form id="addCarForm">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="carModel">Car Model</label>
+                  <input type="text" id="carModel" placeholder="e.g. Honda City" required>
+                </div>
+                <div class="form-group">
+                  <label for="carSeats">Total Seats</label>
+                  <input type="number" id="carSeats" min="1" max="10" value="4">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="carPlate">License Plate</label>
+                  <input type="text" id="carPlate" placeholder="e.g. MH 01 AB 1234">
+                </div>
+                <div class="form-group">
+                  <label for="carColor">Color</label>
+                  <input type="text" id="carColor" placeholder="e.g. White">
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary">➕ Add Car</button>
+            </form>
+          </div>
+          <div id="carsList" class="cars-grid"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer" id="footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <span class="logo-icon">🚗</span>
+          <span class="logo-text">Ride<span class="logo-accent">Share</span></span>
+          <p>Making travel social, affordable, and eco-friendly.</p>
+        </div>
+        <div class="footer-links">
+          <a href="#/">Home</a>
+          <a href="#/find">Find Rides</a>
+          <a href="#/create">Offer Ride</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 RideShare. Built with ❤️</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Rating Modal -->
+  <div class="modal-overlay hidden" id="ratingModal">
+    <div class="modal glass-card">
+      <div class="modal-header">
+        <h3>Rate Your Ride</h3>
+        <button class="modal-close" id="closeRatingModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="star-rating" id="starRating">
+          <span class="star" data-value="1">★</span>
+          <span class="star" data-value="2">★</span>
+          <span class="star" data-value="3">★</span>
+          <span class="star" data-value="4">★</span>
+          <span class="star" data-value="5">★</span>
+        </div>
+        <textarea id="ratingComment" rows="3" placeholder="Share your experience..."></textarea>
+        <input type="hidden" id="ratingRideId">
+        <input type="hidden" id="ratingUserId">
+        <button class="btn btn-primary btn-full" id="submitRating">Submit Rating</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/maps.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/rides.js"></script>
+  <script src="/js/dashboard.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
