@@ -1,57 +1,84 @@
-// Rides module
+// Rides module — Leaflet.js integration
 const Rides = {
   mapInstance: null,
-  markers: [],
+  fromMarker: null,
+  toMarker: null,
   clickMode: 'from', // 'from' or 'to'
 
   init() {
     document.getElementById('searchForm')?.addEventListener('submit', e => { e.preventDefault(); this.search(); });
     document.getElementById('createRideForm')?.addEventListener('submit', e => { e.preventDefault(); this.create(); });
+    this.initPaymentModal();
   },
 
+  /**
+   * Initialize the Create Ride page map
+   */
   initCreateMap() {
+    this.fromMarker = null;
+    this.toMarker = null;
     this.clickMode = 'from';
-    this.markers = [];
     const step = document.getElementById('mapStep');
-    if (step) step.textContent = '📍 Click map to set starting point';
+    if (step) step.textContent = '📍 Click on the map to set your pickup location';
 
     setTimeout(() => {
       this.mapInstance = Maps.create('createRideMap', { center: [20.5937, 78.9629], zoom: 5 });
       if (!this.mapInstance) return;
+
+      // Handle map clicks to set pickup / destination
       this.mapInstance.on('click', async (e) => {
         const { lat, lng } = e.latlng;
         const name = await Maps.reverseGeocode(lat, lng);
 
         if (this.clickMode === 'from') {
-          if (this.markers[0]) this.mapInstance.removeLayer(this.markers[0]);
-          this.markers[0] = Maps.addMarker(this.mapInstance, lat, lng, '📍 Start: ' + name, 'blue');
+          // Remove old start marker
+          if (this.fromMarker) this.mapInstance.removeLayer(this.fromMarker);
+          this.fromMarker = Maps.addMarker(this.mapInstance, lat, lng, '📍 Pickup: ' + name, 'blue');
+
           document.getElementById('rideFrom').value = name;
           document.getElementById('rideFromLat').value = lat;
           document.getElementById('rideFromLng').value = lng;
+
           this.clickMode = 'to';
-          if (step) step.textContent = '📍 Now click to set destination';
+          if (step) step.textContent = '📍 Now click on the map to set your destination';
         } else {
-          if (this.markers[1]) this.mapInstance.removeLayer(this.markers[1]);
-          this.markers[1] = Maps.addMarker(this.mapInstance, lat, lng, '🏁 End: ' + name, 'cyan');
+          // Remove old end marker
+          if (this.toMarker) this.mapInstance.removeLayer(this.toMarker);
+          this.toMarker = Maps.addMarker(this.mapInstance, lat, lng, '🏁 Destination: ' + name, 'cyan');
+
           document.getElementById('rideTo').value = name;
           document.getElementById('rideToLat').value = lat;
           document.getElementById('rideToLng').value = lng;
+
           this.clickMode = 'from';
-          if (step) step.textContent = '✅ Route set! Click again to change start';
-          // Draw route line
+          if (step) step.textContent = '✅ Route set! Click again to change pickup';
+
+          // Draw route line between the two points
           const fromLat = parseFloat(document.getElementById('rideFromLat').value);
           const fromLng = parseFloat(document.getElementById('rideFromLng').value);
-          Maps.drawRoute(this.mapInstance, [fromLat, fromLng], [lat, lng]);
+          if (fromLat && fromLng) {
+            Maps.drawRoute(this.mapInstance, [fromLat, fromLng], [lat, lng]);
+          }
         }
       });
     }, 300);
 
-    // Load user's cars
+    // Load user's cars into dropdown
     this.loadCarsForSelect();
 
-    // Set min datetime to now
+    // Set min datetime to now, and default to 7 days from now at 9am
     const dt = document.getElementById('rideDate');
-    if (dt) { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); dt.min = now.toISOString().slice(0, 16); }
+    if (dt) {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      dt.min = now.toISOString().slice(0, 16);
+      // Default to 7 days from now at 09:00
+      const defaultDate = new Date();
+      defaultDate.setDate(defaultDate.getDate() + 7);
+      defaultDate.setHours(9, 0, 0, 0);
+      defaultDate.setMinutes(defaultDate.getMinutes() - defaultDate.getTimezoneOffset());
+      dt.value = defaultDate.toISOString().slice(0, 16);
+    }
   },
 
   async loadCarsForSelect() {
@@ -192,7 +219,7 @@ const Rides = {
               <div class="info-item"><div class="info-icon">💰</div><div class="info-label">Price/Seat</div><div class="info-value">${priceStr}</div></div>
             </div>
             ${r.notes ? `<div style="padding:12px 16px;background:rgba(255,255,255,0.04);border-radius:8px;margin:16px 0;color:var(--text-secondary);font-size:0.9rem;">📝 ${this.esc(r.notes)}</div>` : ''}
-            ${(r.from_lat && r.to_lat) ? `<div id="detailMap" class="ride-detail-map"></div>` : ''}
+            ${(r.from_lat && r.to_lat) ? '<div id="detailMap" class="ride-detail-map"></div>' : ''}
             <div style="display:flex;align-items:center;gap:12px;padding:16px 0;border-top:1px solid var(--glass-border);margin-top:16px;">
               <div class="ride-driver-avatar" style="width:48px;height:48px;font-size:1.2rem;">${r.driver_photo ? `<img src="${r.driver_photo}" alt="">` : r.driver_name?.charAt(0).toUpperCase()}</div>
               <div><div style="font-weight:600;">${this.esc(r.driver_name)}</div>
@@ -217,32 +244,213 @@ const Rides = {
         </div>
       `;
 
-      // Bind actions
+      // Bind action buttons
       document.getElementById('bookRideBtn')?.addEventListener('click', () => this.bookRide(r.id));
       document.getElementById('cancelRideBtn')?.addEventListener('click', () => this.cancelRide(r.id));
 
-      // Init map if coords exist
+      // Initialize map on ride detail page if coordinates exist
       if (r.from_lat && r.to_lat) {
         setTimeout(() => {
-          const map = Maps.create('detailMap', { center: [(r.from_lat+r.to_lat)/2, (r.from_lng+r.to_lng)/2], zoom: 8 });
+          const midLat = (r.from_lat + r.to_lat) / 2;
+          const midLng = (r.from_lng + r.to_lng) / 2;
+          const map = Maps.create('detailMap', { center: [midLat, midLng], zoom: 8 });
           if (map) {
             Maps.addMarker(map, r.from_lat, r.from_lng, '📍 ' + r.from_location, 'blue');
             Maps.addMarker(map, r.to_lat, r.to_lng, '🏁 ' + r.to_location, 'cyan');
             Maps.drawRoute(map, [r.from_lat, r.from_lng], [r.to_lat, r.to_lng]);
           }
-        }, 300);
+        }, 400);
       }
     } catch (err) {
       container.innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><h3>Ride not found</h3></div>`;
     }
   },
 
+  /**
+   * Open the payment modal instead of booking directly
+   */
   async bookRide(rideId) {
     try {
-      await API.post('/bookings', { ride_id: rideId, seats_booked: 1 });
-      App.showToast('Ride booked successfully!', 'success');
+      const data = await API.get(`/rides/${rideId}`);
+      const r = data.ride;
+
+      // Populate modal
+      document.getElementById('payFrom').textContent = r.from_location;
+      document.getElementById('payTo').textContent = r.to_location;
+      document.getElementById('payRideId').value = r.id;
+      document.getElementById('payMaxSeats').value = r.available_seats;
+      document.getElementById('payPriceValue').value = r.price_per_seat;
+      document.getElementById('seatCount').textContent = '1';
+      document.getElementById('payPricePerSeat').textContent = r.price_per_seat > 0 ? `₹${r.price_per_seat}` : 'Free';
+      this._updatePayTotal();
+
+      // Show/hide stripe section based on price
+      const isFree = r.price_per_seat <= 0;
+      document.getElementById('freeRideNotice').classList.toggle('hidden', !isFree);
+      document.getElementById('stripeCardSection').classList.toggle('hidden', isFree);
+
+      if (isFree) {
+        document.getElementById('confirmPaymentBtn').querySelector('.btn-text').textContent = '🎫 Confirm Free Booking';
+      } else {
+        document.getElementById('confirmPaymentBtn').querySelector('.btn-text').textContent = '💳 Pay & Book';
+      }
+
+      // Initialize Stripe card element if not free
+      if (!isFree) {
+        this._initStripeCard();
+      }
+
+      // Show modal
+      document.getElementById('paymentModal').classList.remove('hidden');
+    } catch (err) {
+      App.showToast(err.message, 'error');
+    }
+  },
+
+  /** Update the total price in the payment modal */
+  _updatePayTotal() {
+    const seats = parseInt(document.getElementById('seatCount').textContent) || 1;
+    const price = parseFloat(document.getElementById('payPriceValue').value) || 0;
+    const total = seats * price;
+    document.getElementById('payTotal').textContent = total > 0 ? `₹${total}` : 'Free';
+  },
+
+  /** Initialize Stripe Elements card input */
+  _stripeInstance: null,
+  _stripeCard: null,
+
+  async _initStripeCard() {
+    try {
+      // Fetch publishable key
+      if (!this._stripeInstance) {
+        const config = await fetch('/api/config').then(r => r.json());
+        if (config.stripePublishableKey && !config.stripePublishableKey.includes('YOUR_')) {
+          this._stripeInstance = Stripe(config.stripePublishableKey);
+        }
+      }
+
+      // Mount card element
+      if (this._stripeInstance) {
+        const elements = this._stripeInstance.elements();
+        // Unmount old card if exists
+        if (this._stripeCard) {
+          this._stripeCard.destroy();
+        }
+        this._stripeCard = elements.create('card', {
+          style: {
+            base: {
+              color: '#f1f5f9',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: '15px',
+              '::placeholder': { color: '#64748b' },
+            },
+            invalid: { color: '#ef4444' },
+          },
+        });
+        this._stripeCard.mount('#stripeCardElement');
+        this._stripeCard.on('change', (event) => {
+          const errEl = document.getElementById('stripeCardErrors');
+          errEl.textContent = event.error ? event.error.message : '';
+        });
+      }
+    } catch (e) {
+      console.warn('Stripe init skipped:', e);
+    }
+  },
+
+  /** Handle the payment and booking */
+  async _processPayment() {
+    const btn = document.getElementById('confirmPaymentBtn');
+    const rideId = parseInt(document.getElementById('payRideId').value);
+    const seats = parseInt(document.getElementById('seatCount').textContent) || 1;
+    const price = parseFloat(document.getElementById('payPriceValue').value) || 0;
+    const isFree = price <= 0;
+
+    try {
+      Auth.setLoading(btn, true);
+      let paymentIntentId = null;
+
+      if (!isFree) {
+        // Create payment intent on server
+        const intentData = await API.post('/payments/create-intent', { ride_id: rideId, seats });
+
+        if (intentData.free) {
+          // Server says it's free
+        } else if (intentData.mock) {
+          // Mock mode — no real Stripe keys
+          paymentIntentId = 'mock_' + Date.now();
+          App.showToast('Mock payment processed (Stripe test keys not set)', 'info');
+        } else if (intentData.clientSecret && this._stripeInstance && this._stripeCard) {
+          // Real Stripe payment
+          const { error, paymentIntent } = await this._stripeInstance.confirmCardPayment(
+            intentData.clientSecret,
+            { payment_method: { card: this._stripeCard } }
+          );
+          if (error) {
+            App.showToast(error.message, 'error');
+            return;
+          }
+          paymentIntentId = paymentIntent.id;
+        } else {
+          // Stripe not configured, use mock
+          paymentIntentId = 'mock_' + Date.now();
+        }
+      }
+
+      // Create the booking
+      await API.post('/bookings', {
+        ride_id: rideId,
+        seats_booked: seats,
+        payment_intent_id: paymentIntentId,
+      });
+
+      // If paid, confirm payment on server
+      if (paymentIntentId) {
+        // The booking is already created, just confirm payment record
+      }
+
+      // Close modal and show success
+      document.getElementById('paymentModal').classList.add('hidden');
+      App.showToast(isFree ? 'Ride booked successfully!' : 'Payment successful — Ride booked!', 'success');
       this.loadDetail(rideId);
-    } catch (err) { App.showToast(err.message, 'error'); }
+    } catch (err) {
+      App.showToast(err.message, 'error');
+    } finally {
+      Auth.setLoading(btn, false);
+    }
+  },
+
+  /** Init payment modal event listeners (called once from Rides.init) */
+  initPaymentModal() {
+    // Close button
+    document.getElementById('closePaymentModal')?.addEventListener('click', () => {
+      document.getElementById('paymentModal').classList.add('hidden');
+    });
+
+    // Seat +/- buttons
+    document.getElementById('seatPlus')?.addEventListener('click', () => {
+      const el = document.getElementById('seatCount');
+      const max = parseInt(document.getElementById('payMaxSeats').value) || 1;
+      let val = parseInt(el.textContent) || 1;
+      if (val < max) { el.textContent = val + 1; this._updatePayTotal(); }
+    });
+    document.getElementById('seatMinus')?.addEventListener('click', () => {
+      const el = document.getElementById('seatCount');
+      let val = parseInt(el.textContent) || 1;
+      if (val > 1) { el.textContent = val - 1; this._updatePayTotal(); }
+    });
+
+    // Confirm button
+    document.getElementById('confirmPaymentBtn')?.addEventListener('click', () => {
+      this._processPayment();
+    });
+
+    // Close on overlay click
+    document.getElementById('paymentModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'paymentModal') {
+        document.getElementById('paymentModal').classList.add('hidden');
+      }
+    });
   },
 
   async cancelRide(rideId) {

@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const dbPath = path.resolve(process.env.DB_PATH || './database.sqlite');
 let db = null;
+let inTransaction = false;
 
 async function initialize() {
   const SQL = await initSqlJs();
@@ -76,12 +77,22 @@ async function initialize() {
       ride_id INTEGER NOT NULL,
       passenger_id INTEGER NOT NULL,
       seats_booked INTEGER NOT NULL DEFAULT 1,
+      total_amount REAL DEFAULT 0,
+      payment_status TEXT DEFAULT 'unpaid' CHECK(payment_status IN ('unpaid', 'paid', 'refunded')),
+      payment_intent_id TEXT,
       status TEXT DEFAULT 'confirmed' CHECK(status IN ('pending', 'confirmed', 'cancelled', 'completed')),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE,
       FOREIGN KEY (passenger_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // Safe migration: add payment columns if they don't already exist
+  const bookingCols = db.exec("PRAGMA table_info(bookings)");
+  const colNames = bookingCols.length > 0 ? bookingCols[0].values.map(r => r[1]) : [];
+  if (!colNames.includes('total_amount')) db.run('ALTER TABLE bookings ADD COLUMN total_amount REAL DEFAULT 0');
+  if (!colNames.includes('payment_status')) db.run("ALTER TABLE bookings ADD COLUMN payment_status TEXT DEFAULT 'unpaid'");
+  if (!colNames.includes('payment_intent_id')) db.run('ALTER TABLE bookings ADD COLUMN payment_intent_id TEXT');
 
   db.run(`
     CREATE TABLE IF NOT EXISTS ratings (
@@ -128,7 +139,8 @@ function prepare(sql) {
       db.run(sql, clean);
       const lastIdResult = db.exec('SELECT last_insert_rowid() as id');
       const changesResult = db.exec('SELECT changes() as c');
-      saveDb();
+      // Only persist immediately for non-transactional calls
+      if (!inTransaction) saveDb();
       return {
         lastInsertRowid: lastIdResult.length > 0 ? lastIdResult[0].values[0][0] : 0,
         changes: changesResult.length > 0 ? changesResult[0].values[0][0] : 0
@@ -178,14 +190,17 @@ function prepare(sql) {
 
 function transaction(fn) {
   return (...args) => {
+    inTransaction = true;
     db.run('BEGIN TRANSACTION');
     try {
       const result = fn(...args);
       db.run('COMMIT');
+      inTransaction = false;
       saveDb();
       return result;
     } catch (err) {
-      db.run('ROLLBACK');
+      try { db.run('ROLLBACK'); } catch (_) { /* ignore rollback error */ }
+      inTransaction = false;
       throw err;
     }
   };

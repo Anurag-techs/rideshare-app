@@ -26,6 +26,15 @@ app.use('/api/cars', require('./routes/cars'));
 app.use('/api/rides', require('./routes/rides'));
 app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/ratings', require('./routes/ratings'));
+app.use('/api/payments', require('./routes/payments'));
+
+// Config endpoint — serve API keys to frontend
+app.get('/api/config', (req, res) => {
+  res.json({
+    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || '',
+    stripePublishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+  });
+});
 
 // SPA fallback
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));

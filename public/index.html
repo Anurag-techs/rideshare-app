@@ -249,13 +249,13 @@
               <div class="form-row">
                 <div class="form-group">
                   <label for="rideFrom">📍 Starting Location</label>
-                  <input type="text" id="rideFrom" placeholder="Click on map or type location" required>
+                  <input type="text" id="rideFrom" placeholder="Click on the map to set pickup" required>
                   <input type="hidden" id="rideFromLat">
                   <input type="hidden" id="rideFromLng">
                 </div>
                 <div class="form-group">
                   <label for="rideTo">📍 Destination</label>
-                  <input type="text" id="rideTo" placeholder="Click on map or type location" required>
+                  <input type="text" id="rideTo" placeholder="Click on the map to set destination" required>
                   <input type="hidden" id="rideToLat">
                   <input type="hidden" id="rideToLng">
                 </div>
@@ -294,7 +294,7 @@
           </div>
           <div class="create-ride-map glass-card">
             <div class="map-instructions">
-              <span class="map-step active" id="mapStep">📍 Click map to set starting point</span>
+              <span class="map-step active" id="mapStep">📍 Click on the map to set your pickup location</span>
             </div>
             <div id="createRideMap" class="map-container"></div>
           </div>
@@ -476,7 +476,68 @@
     </div>
   </div>
 
+  <!-- Payment Modal -->
+  <div class="modal-overlay hidden" id="paymentModal">
+    <div class="modal glass-card" style="max-width:480px;">
+      <div class="modal-header">
+        <h3>💳 Book & Pay</h3>
+        <button class="modal-close" id="closePaymentModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <!-- Order Summary -->
+        <div class="payment-summary" id="paymentSummary">
+          <div class="payment-route">
+            <div class="payment-route-from"><span class="dot"></span> <span id="payFrom">-</span></div>
+            <div class="payment-route-to"><span class="dot dest"></span> <span id="payTo">-</span></div>
+          </div>
+          <div class="payment-details">
+            <div class="payment-row">
+              <span>💺 Seats</span>
+              <div class="seats-selector">
+                <button class="seat-btn" id="seatMinus">−</button>
+                <span id="seatCount">1</span>
+                <button class="seat-btn" id="seatPlus">+</button>
+              </div>
+            </div>
+            <div class="payment-row">
+              <span>Price per seat</span>
+              <span id="payPricePerSeat">₹0</span>
+            </div>
+            <div class="payment-divider"></div>
+            <div class="payment-row total">
+              <span>Total Amount</span>
+              <span id="payTotal" class="payment-total">₹0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stripe Card Element -->
+        <div id="stripeCardSection" class="hidden">
+          <label class="payment-label">Card Details</label>
+          <div id="stripeCardElement" class="stripe-card-element"></div>
+          <div id="stripeCardErrors" class="stripe-error"></div>
+        </div>
+
+        <!-- Free ride notice -->
+        <div id="freeRideNotice" class="hidden" style="text-align:center;padding:16px;color:var(--success);font-weight:600;">
+          🎉 This ride is free! No payment needed.
+        </div>
+
+        <!-- Hidden fields -->
+        <input type="hidden" id="payRideId">
+        <input type="hidden" id="payMaxSeats">
+        <input type="hidden" id="payPriceValue">
+
+        <button class="btn btn-primary btn-full btn-lg" id="confirmPaymentBtn" style="margin-top:20px;">
+          <span class="btn-text">🎫 Confirm Booking</span>
+          <span class="btn-loader hidden"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://js.stripe.com/v3/"></script>
   <script src="/js/api.js"></script>
   <script src="/js/maps.js"></script>
   <script src="/js/auth.js"></script>
