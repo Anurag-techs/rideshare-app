@@ -352,96 +352,165 @@ const Rides = {
     document.getElementById('payTotal').textContent      = total > 0 ? `₹${total}` : 'Free';
   },
 
-  // ── Process payment via Razorpay ─────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // _processPayment()
+  //
+  // CORRECT FLOW:
+  //   1. Validate → 2. Create Razorpay order (backend)
+  //   3. Open Razorpay checkout popup
+  //   4. User pays → Razorpay calls handler()
+  //   5. handler() sends all 3 IDs to /payments/verify (backend)
+  //   6. Backend verifies HMAC signature → creates booking atomically
+  //   7. ONLY on success → show toast + reload ride
+  //
+  // Booking is NEVER created before step 6.
+  // ─────────────────────────────────────────────────────────────────────────
   async _processPayment() {
-    const btn     = document.getElementById('confirmPaymentBtn');
-    const rideId  = parseInt(document.getElementById('payRideId').value);
-    const seats   = parseInt(document.getElementById('seatCount').textContent) || 1;
-    const price   = parseFloat(document.getElementById('payPriceValue').value) || 0;
-    const isFree  = price <= 0;
+    const btn    = document.getElementById('confirmPaymentBtn');
+    const rideId = parseInt(document.getElementById('payRideId').value);
+    const seats  = parseInt(document.getElementById('seatCount').textContent) || 1;
+    const price  = parseFloat(document.getElementById('payPriceValue').value) || 0;
+    const isFree = price <= 0;
+
+    // Prevent double-clicks — disable button immediately
+    btn.disabled = true;
+    Auth.setLoading(btn, true);
+
+    // Keep a stable reference to `this` for use inside Razorpay callbacks
+    const _self = this;
 
     try {
-      Auth.setLoading(btn, true);
-
+      // ── FREE RIDE ─────────────────────────────────────────────────────────
       if (isFree) {
-        // Free ride — no payment needed
         await API.post('/payments/book-free', { ride_id: rideId, seats });
         document.getElementById('paymentModal').classList.add('hidden');
         App.showToast('🎉 Free ride booked successfully!', 'success');
-        this.loadDetail(rideId);
+        _self.loadDetail(rideId);
         return;
       }
 
-      // Step 1: Create Razorpay order on backend
+      // ── STEP 1: Create Razorpay order on the backend ──────────────────────
+      // Backend validates ride, checks availability, returns order_id
+      // NO booking is created yet at this point.
       const order = await API.post('/payments/create-order', { ride_id: rideId, seats });
 
+      // ── MOCK MODE (no real Razorpay keys) ─────────────────────────────────
       if (order.mock) {
-        // Mock mode — no real Razorpay keys configured
-        const verifyRes = await API.post('/payments/verify', {
-          ride_id:            rideId,
+        // In mock mode, skip Razorpay popup and call verify directly
+        // Backend verify creates the booking atomically
+        await API.post('/payments/verify', {
+          ride_id:             rideId,
           seats,
-          razorpay_order_id:  order.order_id,
-          razorpay_payment_id:'mock_pay_' + Date.now(),
-          razorpay_signature: 'mock_sig',
+          razorpay_order_id:   order.order_id,
+          razorpay_payment_id: 'mock_pay_' + Date.now(),
+          razorpay_signature:  'mock_sig',
         });
         document.getElementById('paymentModal').classList.add('hidden');
-        App.showToast('✅ Mock payment successful — Ride booked!', 'success');
-        this.loadDetail(rideId);
+        App.showToast('✅ Mock payment — Ride booked!', 'success');
+        _self.loadDetail(rideId);
         return;
       }
 
-      // Step 2: Open Razorpay checkout
-      Auth.setLoading(btn, false); // Release button while Razorpay dialog is open
+      // ── STEP 2: Open Razorpay Standard Checkout ───────────────────────────
+      // Release button ONLY so Razorpay modal can be dismissed/interacted with.
+      // We re-disable it inside the handler before making verify call.
+      Auth.setLoading(btn, false);
+      btn.disabled = false;
+
       const user = API.getUser();
 
       await new Promise((resolve, reject) => {
-        const rzp = new Razorpay({
+        const rzpOptions = {
           key:         order.key_id,
-          amount:      order.amount,           // in paise
+          amount:      order.amount,        // in paise — e.g. 50000 for ₹500
           currency:    order.currency || 'INR',
           order_id:    order.order_id,
           name:        'RideShare',
-          description: `${order.ride_from} → ${order.ride_to}`,
+          description: `${order.ride_from || ''} → ${order.ride_to || ''}`,
           prefill: {
-            name:    user?.name  || '',
-            email:   user?.email || '',
+            name:  user?.name  || '',
+            email: user?.email || '',
           },
           theme: { color: '#6366f1' },
-          handler: async (response) => {
+
+          // ── STEP 3: Payment success handler ──────────────────────────────
+          // Razorpay calls this ONLY after the user's bank confirms payment.
+          // response contains: razorpay_payment_id, razorpay_order_id, razorpay_signature
+          handler: async function (response) {
+            // Re-disable button immediately to prevent duplicate verify calls
+            btn.disabled = true;
+            Auth.setLoading(btn, true);
+
             try {
-              // Step 3: Verify payment signature on backend
-              Auth.setLoading(btn, true);
-              const verifyRes = await API.post('/payments/verify', {
+              // ── STEP 4: Verify signature + CREATE BOOKING on backend ──────
+              // Backend:
+              //   a) Recomputes HMAC-SHA256(order_id|payment_id, KEY_SECRET)
+              //   b) Compares with razorpay_signature — rejects if mismatch
+              //   c) Only if valid → INSERT booking + INSERT payment (atomic transaction)
+              //   d) Deducts available seats
+              await API.post('/payments/verify', {
                 ride_id:             rideId,
                 seats,
                 razorpay_order_id:   response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature:  response.razorpay_signature,
               });
+
+              // ── STEP 5: Booking confirmed — update UI ─────────────────────
               document.getElementById('paymentModal').classList.add('hidden');
-              App.showToast('💳 Payment successful — Ride booked! 🎉', 'success');
-              this.loadDetail(rideId);
+              App.showToast('💳 Payment verified — Ride booked! 🎉', 'success');
+              _self.loadDetail(rideId);
               resolve();
-            } catch (err) {
-              App.showToast('Payment verification failed: ' + err.message, 'error');
-              reject(err);
+
+            } catch (verifyErr) {
+              // Signature mismatch or server error — booking was NOT created
+              App.showToast(
+                '❌ Payment verification failed: ' + (verifyErr.message || 'Please contact support.'),
+                'error'
+              );
+              reject(verifyErr);
             } finally {
               Auth.setLoading(btn, false);
+              btn.disabled = false;
             }
           },
+
+          // ── Payment failure event (card declined, network issue, etc.) ────
+          // Note: Razorpay also calls handler with a failed response in some flows.
+          // This catches explicit payment.failed events.
+
           modal: {
+            // User closed the Razorpay popup without paying
             ondismiss: () => {
-              App.showToast('Payment cancelled.', 'info');
-              resolve();
+              Auth.setLoading(btn, false);
+              btn.disabled = false;
+              App.showToast('Payment cancelled. No booking was made.', 'info');
+              resolve(); // resolve (not reject) so the outer try/catch doesn't fire an extra toast
             }
           }
+        };
+
+        const rzpInstance = new Razorpay(rzpOptions);
+
+        // Handle explicit payment failure event (card declined, etc.)
+        rzpInstance.on('payment.failed', (failedResponse) => {
+          Auth.setLoading(btn, false);
+          btn.disabled = false;
+          const reason = failedResponse?.error?.description || 'Payment failed. Please try again.';
+          App.showToast('❌ ' + reason, 'error');
+          resolve(); // resolve so Promise doesn't hang
         });
-        rzp.open();
+
+        rzpInstance.open();
       });
+
     } catch (err) {
-      App.showToast(err.message || 'Payment failed', 'error');
+      // Catch errors from create-order or unexpected failures
+      App.showToast(err.message || 'Something went wrong. Please try again.', 'error');
     } finally {
+      // Always restore button state as a safety net
       Auth.setLoading(btn, false);
+      btn.disabled = false;
     }
   },
 
