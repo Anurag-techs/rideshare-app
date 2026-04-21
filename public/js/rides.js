@@ -382,6 +382,7 @@ const Rides = {
     try {
       // ── FREE RIDE ─────────────────────────────────────────────────────────
       if (isFree) {
+        console.log('BOOKING AFTER PAYMENT: Free ride (no payment required)');
         await API.post('/payments/book-free', { ride_id: rideId, seats });
         document.getElementById('paymentModal').classList.add('hidden');
         App.showToast('🎉 Free ride booked successfully!', 'success');
@@ -398,6 +399,7 @@ const Rides = {
       if (order.mock) {
         // In mock mode, skip Razorpay popup and call verify directly
         // Backend verify creates the booking atomically
+        console.log('BOOKING AFTER PAYMENT: Mock mode payment verification');
         await API.post('/payments/verify', {
           ride_id:             rideId,
           seats,
@@ -448,6 +450,7 @@ const Rides = {
               //   b) Compares with razorpay_signature — rejects if mismatch
               //   c) Only if valid → INSERT booking + INSERT payment (atomic transaction)
               //   d) Deducts available seats
+              console.log('BOOKING AFTER PAYMENT: Real Razorpay payment verified, creating booking');
               await API.post('/payments/verify', {
                 ride_id:             rideId,
                 seats,
