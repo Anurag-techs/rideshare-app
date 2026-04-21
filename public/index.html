@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="RideShare - Modern carpooling platform. Share rides, save money, reduce carbon footprint.">
+  <meta name="description" content="RideShare — India's smart carpooling platform with UPI payments, AI ride suggestions, and a trusted community.">
   <title>RideShare — Carpooling Platform</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
+
   <!-- Navigation -->
   <nav class="navbar" id="navbar">
     <div class="nav-container">
@@ -63,7 +64,7 @@
         <div class="hero-content">
           <div class="hero-badge">🌍 Eco-Friendly Travel</div>
           <h1 class="hero-title">Share the Ride,<br><span class="gradient-text">Share the Journey</span></h1>
-          <p class="hero-subtitle">Connect with fellow travelers heading your way. Save money, reduce emissions, and make new friends on every trip.</p>
+          <p class="hero-subtitle">Connect with fellow travelers heading your way. Pay with UPI, GPay, or PhonePe. Save money, reduce emissions.</p>
           <div class="hero-actions">
             <a href="#/find" class="btn btn-primary btn-lg">
               <span>🔍</span> Find a Ride
@@ -71,6 +72,12 @@
             <a href="#/create" class="btn btn-outline btn-lg">
               <span>➕</span> Offer a Ride
             </a>
+          </div>
+          <div class="hero-payment-badges">
+            <span class="pay-badge">📱 UPI</span>
+            <span class="pay-badge">G Pay</span>
+            <span class="pay-badge">PhonePe</span>
+            <span class="pay-badge">Paytm</span>
           </div>
           <div class="hero-stats">
             <div class="stat-item">
@@ -104,9 +111,9 @@
               <p>Offer a ride as a driver or search for rides matching your route.</p>
             </div>
             <div class="feature-card">
-              <div class="feature-icon">🤝</div>
-              <h3>Book & Travel</h3>
-              <p>Book a seat, meet your co-travelers, and enjoy the journey together.</p>
+              <div class="feature-icon">💳</div>
+              <h3>Pay with UPI</h3>
+              <p>Pay securely using GPay, PhonePe, Paytm or any UPI app.</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">⭐</div>
@@ -191,6 +198,35 @@
           <h1>Find a <span class="gradient-text">Ride</span></h1>
           <p>Search available rides and book your seat</p>
         </div>
+
+        <!-- AI Chat Assistant -->
+        <div class="ai-chat-panel glass-card" id="aiChatPanel">
+          <div class="ai-chat-header">
+            <span class="ai-badge">🤖 AI</span>
+            <span class="ai-title">Smart Search — just describe your ride</span>
+          </div>
+          <div class="ai-messages" id="aiMessages">
+            <div class="ai-msg ai-msg-bot">
+              <span class="ai-msg-avatar">🤖</span>
+              <div class="ai-msg-bubble">
+                Hi! Tell me where you want to go — e.g. <em>"Find cheap ride from Noida to Delhi tomorrow"</em>
+              </div>
+            </div>
+          </div>
+          <div class="ai-chat-input-row">
+            <input type="text" id="aiChatInput" class="ai-chat-input" placeholder="e.g. Cheap ride from Noida to Delhi tomorrow...">
+            <button class="btn btn-primary btn-sm" id="aiChatSend">Send</button>
+          </div>
+        </div>
+
+        <!-- Sort pills -->
+        <div class="sort-pills" id="sortPills">
+          <button class="sort-pill active" data-sort="balanced">⚡ Best Match</button>
+          <button class="sort-pill" data-sort="cheap">💰 Cheapest</button>
+          <button class="sort-pill" data-sort="fast">🕐 Earliest</button>
+          <button class="sort-pill" data-sort="safe">⭐ Top Rated</button>
+        </div>
+
         <div class="search-panel glass-card">
           <form id="searchForm" class="search-form">
             <div class="search-row">
@@ -226,6 +262,15 @@
             </div>
           </form>
         </div>
+
+        <!-- AI Suggestions Section (shown when logged in) -->
+        <div id="aiSuggestSection" class="hidden">
+          <div class="section-subtitle">
+            <span class="ai-badge">🤖 AI</span> Recommended for you
+          </div>
+          <div class="rides-grid" id="aiSuggestGrid"></div>
+        </div>
+
         <div class="rides-grid" id="ridesGrid">
           <div class="empty-state" id="ridesEmpty">
             <div class="empty-icon">🔍</div>
@@ -262,7 +307,7 @@
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label for="rideDate">📅 Date & Time</label>
+                  <label for="rideDate">📅 Date &amp; Time</label>
                   <input type="datetime-local" id="rideDate" required>
                 </div>
                 <div class="form-group">
@@ -278,6 +323,18 @@
                 <div class="form-group">
                   <label for="ridePrice">💰 Price per Seat (₹)</label>
                   <input type="number" id="ridePrice" min="0" value="0" placeholder="0 = Free">
+                </div>
+              </div>
+              <!-- Live commission preview -->
+              <div class="commission-preview glass-card" id="commissionPreview" style="display:none;">
+                <div class="commission-row">
+                  <span>💰 Total per seat</span><span id="cpTotal">₹0</span>
+                </div>
+                <div class="commission-row">
+                  <span>🏦 Platform fee (10%)</span><span id="cpComm" style="color:var(--warning)">₹0</span>
+                </div>
+                <div class="commission-row" style="font-weight:700;">
+                  <span>💵 You earn per seat</span><span id="cpEarn" style="color:var(--success)">₹0</span>
                 </div>
               </div>
               <div class="form-group">
@@ -324,6 +381,11 @@
             <div class="stat-card-label">Upcoming</div>
           </div>
           <div class="stat-card glass-card">
+            <div class="stat-card-icon">💵</div>
+            <div class="stat-card-value" id="statEarnings">₹0</div>
+            <div class="stat-card-label">Total Earned</div>
+          </div>
+          <div class="stat-card glass-card">
             <div class="stat-card-icon">⭐</div>
             <div class="stat-card-value" id="statRating">-</div>
             <div class="stat-card-label">Rating</div>
@@ -332,12 +394,16 @@
         <div class="dashboard-tabs">
           <button class="tab-btn active" data-tab="driver">🚗 My Rides (Driver)</button>
           <button class="tab-btn" data-tab="passenger">🎫 My Bookings</button>
+          <button class="tab-btn" data-tab="payments">💳 Payments</button>
         </div>
         <div class="tab-content" id="driverTab">
           <div id="driverRides" class="rides-list"></div>
         </div>
         <div class="tab-content hidden" id="passengerTab">
           <div id="passengerBookings" class="rides-list"></div>
+        </div>
+        <div class="tab-content hidden" id="paymentsTab">
+          <div id="paymentsList" class="rides-list"></div>
         </div>
       </div>
     </section>
@@ -446,7 +512,7 @@
         </div>
       </div>
       <div class="footer-bottom">
-        <p>&copy; 2026 RideShare. Built with ❤️</p>
+        <p>&copy; 2026 RideShare. Powered by AI + Razorpay 🇮🇳</p>
       </div>
     </div>
   </footer>
@@ -474,14 +540,17 @@
     </div>
   </div>
 
-  <!-- Payment Modal -->
+  <!-- ═══════════════════════════════════════════════════════════════
+       RAZORPAY Payment Modal (replaces Stripe)
+  ════════════════════════════════════════════════════════════════════ -->
   <div class="modal-overlay hidden" id="paymentModal">
-    <div class="modal glass-card" style="max-width:480px;">
+    <div class="modal glass-card" style="max-width:500px;">
       <div class="modal-header">
-        <h3>💳 Book & Pay</h3>
+        <h3>🎫 Book &amp; Pay</h3>
         <button class="modal-close" id="closePaymentModal">&times;</button>
       </div>
       <div class="modal-body">
+
         <!-- Order Summary -->
         <div class="payment-summary" id="paymentSummary">
           <div class="payment-route">
@@ -502,6 +571,10 @@
               <span id="payPricePerSeat">₹0</span>
             </div>
             <div class="payment-divider"></div>
+            <div class="payment-row">
+              <span>Platform fee (10%)</span>
+              <span id="payCommission" style="color:var(--warning)">₹0</span>
+            </div>
             <div class="payment-row total">
               <span>Total Amount</span>
               <span id="payTotal" class="payment-total">₹0</span>
@@ -509,11 +582,16 @@
           </div>
         </div>
 
-        <!-- Stripe Card Element -->
-        <div id="stripeCardSection" class="hidden">
-          <label class="payment-label">Card Details</label>
-          <div id="stripeCardElement" class="stripe-card-element"></div>
-          <div id="stripeCardErrors" class="stripe-error"></div>
+        <!-- UPI payment badges -->
+        <div id="upiSection" class="hidden">
+          <div class="upi-label">Pay securely with</div>
+          <div class="upi-badges">
+            <span class="upi-badge">📱 GPay</span>
+            <span class="upi-badge">📲 PhonePe</span>
+            <span class="upi-badge">💼 Paytm</span>
+            <span class="upi-badge">🏦 UPI</span>
+          </div>
+          <div class="upi-note">Razorpay checkout will open — choose your preferred UPI app</div>
         </div>
 
         <!-- Free ride notice -->
@@ -534,8 +612,9 @@
     </div>
   </div>
 
+  <!-- Razorpay SDK (replaces Stripe) -->
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://js.stripe.com/v3/"></script>
   <script src="/js/api.js"></script>
   <script src="/js/maps.js"></script>
   <script src="/js/auth.js"></script>

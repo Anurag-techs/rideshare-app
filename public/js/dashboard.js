@@ -2,10 +2,11 @@
 const Dashboard = {
   async load() {
     try {
-      const [driverData, bookingData, userData] = await Promise.all([
+      const [driverData, bookingData, userData, paymentData] = await Promise.all([
         API.get('/rides/my/driver'),
         API.get('/bookings/my'),
-        API.get('/auth/me')
+        API.get('/auth/me'),
+        API.get('/payments/my').catch(() => ({ payments: [] }))
       ]);
       const rides = driverData.rides || [];
       const bookings = bookingData.bookings || [];
@@ -16,10 +17,15 @@ const Dashboard = {
       const upcomingRides = rides.filter(r => new Date(r.departure_time) > now && r.status === 'active').length;
       const upcomingBookings = bookings.filter(b => new Date(b.departure_time) > now && b.status !== 'cancelled').length;
 
-      document.getElementById('statPosted').textContent = rides.length;
-      document.getElementById('statBooked').textContent = bookings.length;
+      // Calculate total driver earnings from bookings on driver's rides
+      const payments = paymentData.payments || [];
+      const totalEarned = payments.reduce((sum, p) => sum + (p.driver_earning || 0), 0);
+
+      document.getElementById('statPosted').textContent   = rides.length;
+      document.getElementById('statBooked').textContent   = bookings.length;
       document.getElementById('statUpcoming').textContent = upcomingRides + upcomingBookings;
-      document.getElementById('statRating').textContent = user.avg_rating > 0 ? `${user.avg_rating} ⭐` : '-';
+      document.getElementById('statEarnings').textContent = totalEarned > 0 ? `₹${totalEarned.toFixed(0)}` : '₹0';
+      document.getElementById('statRating').textContent   = user.avg_rating > 0 ? `${user.avg_rating} ⭐` : '-';
 
       // Driver rides
       const driverEl = document.getElementById('driverRides');
@@ -102,6 +108,35 @@ const Dashboard = {
             document.getElementById('ratingModal').classList.remove('hidden');
           });
         });
+      }
+      // Payments tab
+      const paymentsEl = document.getElementById('paymentsList');
+      if (paymentsEl) {
+        if (!payments.length) {
+          paymentsEl.innerHTML = '<div class="empty-state"><div class="empty-icon">💳</div><h3>No payments yet</h3><p>Book a paid ride to see payments here.</p></div>';
+        } else {
+          paymentsEl.innerHTML = payments.map(p => {
+            const date     = new Date(p.created_at);
+            const dateStr  = date.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+            const statusColor = p.status === 'paid' ? 'var(--success)' : p.status === 'failed' ? 'var(--error)' : 'var(--warning)';
+            return `<div class="ride-card">
+              <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:8px;">
+                <div>
+                  <div class="ride-route"><span class="route-dot"></span><span class="route-text">${Rides.esc(p.from_location)}</span></div>
+                  <div class="ride-route" style="margin-top:8px;"><span class="route-dot dest"></span><span class="route-text">${Rides.esc(p.to_location)}</span></div>
+                </div>
+                <span style="color:${statusColor};font-weight:600;text-transform:capitalize;">${p.status}</span>
+              </div>
+              <div class="ride-meta" style="margin-top:12px;">
+                <span>📅 ${dateStr}</span>
+                <span>💰 Total: ₹${p.amount}</span>
+                <span style="color:var(--warning);">🏦 Fee: ₹${p.commission_amount||0}</span>
+                <span>💺 ${p.seats_booked} seat(s)</span>
+              </div>
+              ${p.razorpay_payment_id ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;">ID: ${p.razorpay_payment_id}</div>` : ''}
+            </div>`;
+          }).join('');
+        }
       }
     } catch (err) { App.showToast(err.message, 'error'); }
   }

@@ -1,3 +1,8 @@
+/**
+ * db/init.js — SQLite database initialization
+ * Uses sql.js (in-memory + file persistence) for zero-install SQLite.
+ * Production: swap for pg (PostgreSQL) using DATABASE_URL from .env
+ */
 const initSqlJs = require('sql.js');
 const fs = require('fs');
 const path = require('path');
@@ -10,7 +15,7 @@ let inTransaction = false;
 async function initialize() {
   const SQL = await initSqlJs();
 
-  // Load existing database if it exists
+  // Load existing database file, or create fresh
   if (fs.existsSync(dbPath)) {
     const buffer = fs.readFileSync(dbPath);
     db = new SQL.Database(buffer);
@@ -20,120 +25,173 @@ async function initialize() {
 
   db.run('PRAGMA foreign_keys = ON');
 
+  // ── Users ──────────────────────────────────────────────────────────────────
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      phone TEXT,
-      password_hash TEXT NOT NULL,
-      profile_photo TEXT DEFAULT NULL,
-      avg_rating REAL DEFAULT 0,
-      total_ratings INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      name             TEXT    NOT NULL,
+      email            TEXT    UNIQUE NOT NULL,
+      phone            TEXT,
+      password_hash    TEXT    NOT NULL,
+      profile_photo    TEXT    DEFAULT NULL,
+      avg_rating       REAL    DEFAULT 0,
+      total_ratings    INTEGER DEFAULT 0,
+      created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
+  // ── Cars ───────────────────────────────────────────────────────────────────
   db.run(`
     CREATE TABLE IF NOT EXISTS cars (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      model TEXT NOT NULL,
-      total_seats INTEGER NOT NULL DEFAULT 4,
-      car_image TEXT DEFAULT NULL,
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id       INTEGER NOT NULL,
+      model         TEXT    NOT NULL,
+      total_seats   INTEGER NOT NULL DEFAULT 4,
+      car_image     TEXT    DEFAULT NULL,
       license_plate TEXT,
-      color TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      color         TEXT,
+      created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
+  // ── Rides ──────────────────────────────────────────────────────────────────
   db.run(`
     CREATE TABLE IF NOT EXISTS rides (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      driver_id INTEGER NOT NULL,
-      car_id INTEGER,
-      from_location TEXT NOT NULL,
-      to_location TEXT NOT NULL,
-      from_lat REAL,
-      from_lng REAL,
-      to_lat REAL,
-      to_lng REAL,
-      departure_time DATETIME NOT NULL,
-      total_seats INTEGER NOT NULL DEFAULT 4,
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      driver_id       INTEGER NOT NULL,
+      car_id          INTEGER,
+      car_name        TEXT,
+      from_location   TEXT    NOT NULL,
+      to_location     TEXT    NOT NULL,
+      from_lat        REAL,
+      from_lng        REAL,
+      to_lat          REAL,
+      to_lng          REAL,
+      departure_time  DATETIME NOT NULL,
+      total_seats     INTEGER NOT NULL DEFAULT 4,
       available_seats INTEGER NOT NULL DEFAULT 4,
-      price_per_seat REAL DEFAULT 0,
-      notes TEXT,
-      status TEXT DEFAULT 'active' CHECK(status IN ('active', 'completed', 'cancelled')),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      price_per_seat  REAL    DEFAULT 0,
+      notes           TEXT,
+      status          TEXT    DEFAULT 'active' CHECK(status IN ('active','completed','cancelled')),
+      created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (driver_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (car_id) REFERENCES cars(id) ON DELETE SET NULL
+      FOREIGN KEY (car_id)    REFERENCES cars(id)  ON DELETE SET NULL
     )
   `);
 
+  // ── Bookings ───────────────────────────────────────────────────────────────
   db.run(`
     CREATE TABLE IF NOT EXISTS bookings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      ride_id INTEGER NOT NULL,
-      passenger_id INTEGER NOT NULL,
-      seats_booked INTEGER NOT NULL DEFAULT 1,
-      total_amount REAL DEFAULT 0,
-      payment_status TEXT DEFAULT 'unpaid' CHECK(payment_status IN ('unpaid', 'paid', 'refunded')),
-      payment_intent_id TEXT,
-      status TEXT DEFAULT 'confirmed' CHECK(status IN ('pending', 'confirmed', 'cancelled', 'completed')),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE,
-      FOREIGN KEY (passenger_id) REFERENCES users(id) ON DELETE CASCADE
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      ride_id             INTEGER NOT NULL,
+      passenger_id        INTEGER NOT NULL,
+      seats_booked        INTEGER NOT NULL DEFAULT 1,
+      total_amount        REAL    DEFAULT 0,
+      commission_amount   REAL    DEFAULT 0,
+      driver_earning      REAL    DEFAULT 0,
+      payment_status      TEXT    DEFAULT 'pending'
+                          CHECK(payment_status IN ('pending','paid','failed','refunded','free')),
+      razorpay_order_id   TEXT,
+      razorpay_payment_id TEXT,
+      razorpay_signature  TEXT,
+      status              TEXT    DEFAULT 'confirmed'
+                          CHECK(status IN ('pending','confirmed','cancelled','completed')),
+      created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (ride_id)       REFERENCES rides(id) ON DELETE CASCADE,
+      FOREIGN KEY (passenger_id)  REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
-  // Safe migration: add payment columns if they don't already exist
-  const bookingCols = db.exec("PRAGMA table_info(bookings)");
-  const colNames = bookingCols.length > 0 ? bookingCols[0].values.map(r => r[1]) : [];
-  if (!colNames.includes('total_amount')) db.run('ALTER TABLE bookings ADD COLUMN total_amount REAL DEFAULT 0');
-  if (!colNames.includes('payment_status')) db.run("ALTER TABLE bookings ADD COLUMN payment_status TEXT DEFAULT 'unpaid'");
-  if (!colNames.includes('payment_intent_id')) db.run('ALTER TABLE bookings ADD COLUMN payment_intent_id TEXT');
+  // ── Payments (detailed payment records) ────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS payments (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      booking_id          INTEGER NOT NULL,
+      user_id             INTEGER NOT NULL,
+      razorpay_order_id   TEXT,
+      razorpay_payment_id TEXT,
+      razorpay_signature  TEXT,
+      amount              REAL    NOT NULL,
+      commission_amount   REAL    DEFAULT 0,
+      driver_earning      REAL    DEFAULT 0,
+      currency            TEXT    DEFAULT 'INR',
+      status              TEXT    DEFAULT 'pending'
+                          CHECK(status IN ('pending','paid','failed','refunded')),
+      method              TEXT,
+      created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE
+    )
+  `);
 
-  // Safe migration: add car_name column to rides
-  const rideCols = db.exec("PRAGMA table_info(rides)");
-  const rideColNames = rideCols.length > 0 ? rideCols[0].values.map(r => r[1]) : [];
-  if (!rideColNames.includes('car_name')) db.run('ALTER TABLE rides ADD COLUMN car_name TEXT');
-
+  // ── Ratings ────────────────────────────────────────────────────────────────
   db.run(`
     CREATE TABLE IF NOT EXISTS ratings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      ride_id INTEGER NOT NULL,
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      ride_id      INTEGER NOT NULL,
       from_user_id INTEGER NOT NULL,
-      to_user_id INTEGER NOT NULL,
-      rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
-      comment TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE,
+      to_user_id   INTEGER NOT NULL,
+      rating       INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+      comment      TEXT,
+      created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (ride_id)      REFERENCES rides(id) ON DELETE CASCADE,
       FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
+      FOREIGN KEY (to_user_id)   REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  // ── Safe migrations (add new columns to existing tables without breaking) ──
+  _safeAddColumns('bookings', [
+    ['total_amount',        'REAL    DEFAULT 0'],
+    ['commission_amount',   'REAL    DEFAULT 0'],
+    ['driver_earning',      'REAL    DEFAULT 0'],
+    ['payment_status',      "TEXT    DEFAULT 'pending'"],
+    ['razorpay_order_id',   'TEXT'],
+    ['razorpay_payment_id', 'TEXT'],
+    ['razorpay_signature',  'TEXT'],
+    // rename old payment_intent_id → keep for backward compat
+    ['payment_intent_id',   'TEXT'],
+  ]);
+
+  _safeAddColumns('rides', [
+    ['car_name', 'TEXT'],
+  ]);
 
   saveDb();
   console.log('✅ Database initialized successfully');
 }
 
-function saveDb() {
-  if (db) {
-    const data = db.export();
-    const buffer = Buffer.from(data);
-    fs.writeFileSync(dbPath, buffer);
+/** Add columns to a table only if they don't already exist */
+function _safeAddColumns(table, columns) {
+  const result = db.exec(`PRAGMA table_info(${table})`);
+  const existing = result.length > 0 ? result[0].values.map(r => r[1]) : [];
+  for (const [col, def] of columns) {
+    if (!existing.includes(col)) {
+      db.run(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+    }
   }
 }
 
-// Helper functions to mimic better-sqlite3 API
+/** Persist in-memory DB to disk */
+function saveDb() {
+  if (db) {
+    const data = db.export();
+    fs.writeFileSync(dbPath, Buffer.from(data));
+  }
+}
+
+/** Return raw sql.js db instance (rarely needed directly) */
 function getDb() { return db; }
 
+/**
+ * Thin ORM-like wrapper — returns an object with .run / .get / .all
+ * matching the better-sqlite3 API so route files stay clean.
+ */
 function prepare(sql) {
-  // Sanitize params: convert undefined/NaN to null, ensure proper types
   function sanitize(params) {
     return params.map(p => {
-      if (p === undefined || p === '' || (typeof p === 'number' && isNaN(p))) return null;
+      if (p === undefined || (typeof p === 'number' && isNaN(p))) return null;
       return p;
     });
   }
@@ -142,13 +200,12 @@ function prepare(sql) {
     run(...params) {
       const clean = sanitize(params);
       db.run(sql, clean);
-      const lastIdResult = db.exec('SELECT last_insert_rowid() as id');
-      const changesResult = db.exec('SELECT changes() as c');
-      // Only persist immediately for non-transactional calls
+      const lastId  = db.exec('SELECT last_insert_rowid() as id');
+      const changes = db.exec('SELECT changes() as c');
       if (!inTransaction) saveDb();
       return {
-        lastInsertRowid: lastIdResult.length > 0 ? lastIdResult[0].values[0][0] : 0,
-        changes: changesResult.length > 0 ? changesResult[0].values[0][0] : 0
+        lastInsertRowid: lastId.length  > 0 ? lastId[0].values[0][0]  : 0,
+        changes:         changes.length > 0 ? changes[0].values[0][0] : 0,
       };
     },
     get(...params) {
@@ -167,7 +224,7 @@ function prepare(sql) {
         stmt.free();
         return undefined;
       } catch (err) {
-        console.error('DB get error:', err.message, 'SQL:', sql, 'Params:', clean);
+        console.error('DB get error:', err.message, '|SQL:', sql);
         return undefined;
       }
     },
@@ -180,19 +237,20 @@ function prepare(sql) {
         while (stmt.step()) {
           const cols = stmt.getColumnNames();
           const vals = stmt.get();
-          const row = {};
+          const row  = {};
           cols.forEach((c, i) => row[c] = vals[i]);
           results.push(row);
         }
         stmt.free();
       } catch (err) {
-        console.error('DB all error:', err.message, 'SQL:', sql, 'Params:', clean);
+        console.error('DB all error:', err.message, '|SQL:', sql);
       }
       return results;
-    }
+    },
   };
 }
 
+/** Wrap multiple DB operations in a single transaction */
 function transaction(fn) {
   return (...args) => {
     inTransaction = true;
@@ -204,7 +262,7 @@ function transaction(fn) {
       saveDb();
       return result;
     } catch (err) {
-      try { db.run('ROLLBACK'); } catch (_) { /* ignore rollback error */ }
+      try { db.run('ROLLBACK'); } catch (_) { /* ignore */ }
       inTransaction = false;
       throw err;
     }

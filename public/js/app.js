@@ -58,13 +58,16 @@ const App = {
 
     // Page-specific init
     switch (page) {
-      case 'home': this.animateStats(); break;
-      case 'find': Rides.loadAllRides(); break;
-      case 'create': Rides.initCreateMap(); break;
+      case 'find':
+        Rides.loadAllRides();
+        Rides.loadAISuggestions();
+        break;
+      case 'create':    Rides.initCreateMap(); break;
       case 'dashboard': Dashboard.load(); break;
-      case 'profile': Auth.loadProfile(); break;
-      case 'cars': Cars.load(); break;
-      case 'ride': if (param) Rides.loadDetail(param); break;
+      case 'profile':   Auth.loadProfile(); break;
+      case 'cars':      Cars.load(); break;
+      case 'ride':      if (param) Rides.loadDetail(param); break;
+      default:          this.animateStats(); break;
     }
 
     // Scroll to top
@@ -188,8 +191,10 @@ const App = {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         const tab = btn.dataset.tab;
-        document.getElementById('driverTab').classList.toggle('hidden', tab !== 'driver');
+        document.getElementById('driverTab').classList.toggle('hidden',   tab !== 'driver');
         document.getElementById('passengerTab').classList.toggle('hidden', tab !== 'passenger');
+        const paymentsTabEl = document.getElementById('paymentsTab');
+        if (paymentsTabEl) paymentsTabEl.classList.toggle('hidden', tab !== 'payments');
       });
     });
   }
