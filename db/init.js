@@ -94,6 +94,11 @@ async function initialize() {
   if (!colNames.includes('payment_status')) db.run("ALTER TABLE bookings ADD COLUMN payment_status TEXT DEFAULT 'unpaid'");
   if (!colNames.includes('payment_intent_id')) db.run('ALTER TABLE bookings ADD COLUMN payment_intent_id TEXT');
 
+  // Safe migration: add car_name column to rides
+  const rideCols = db.exec("PRAGMA table_info(rides)");
+  const rideColNames = rideCols.length > 0 ? rideCols[0].values.map(r => r[1]) : [];
+  if (!rideColNames.includes('car_name')) db.run('ALTER TABLE rides ADD COLUMN car_name TEXT');
+
   db.run(`
     CREATE TABLE IF NOT EXISTS ratings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

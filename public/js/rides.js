@@ -63,9 +63,6 @@ const Rides = {
       });
     }, 300);
 
-    // Load user's cars into dropdown
-    this.loadCarsForSelect();
-
     // Set min datetime to now, and default to 7 days from now at 9am
     const dt = document.getElementById('rideDate');
     if (dt) {
@@ -79,18 +76,6 @@ const Rides = {
       defaultDate.setMinutes(defaultDate.getMinutes() - defaultDate.getTimezoneOffset());
       dt.value = defaultDate.toISOString().slice(0, 16);
     }
-  },
-
-  async loadCarsForSelect() {
-    try {
-      const data = await API.get('/cars');
-      const select = document.getElementById('rideCar');
-      if (!select) return;
-      select.innerHTML = '<option value="">No car selected</option>';
-      data.cars.forEach(c => {
-        select.innerHTML += `<option value="${c.id}">${c.model}${c.color ? ' ('+c.color+')' : ''} - ${c.total_seats} seats</option>`;
-      });
-    } catch { }
   },
 
   async create() {
@@ -108,7 +93,7 @@ const Rides = {
         total_seats: parseInt(document.getElementById('rideSeats').value),
         available_seats: parseInt(document.getElementById('rideSeats').value),
         price_per_seat: parseFloat(document.getElementById('ridePrice').value) || 0,
-        car_id: document.getElementById('rideCar').value || null,
+        car_name: document.getElementById('rideCar').value,
         notes: document.getElementById('rideNotes').value,
       };
       await API.post('/rides', body);
@@ -174,7 +159,7 @@ const Rides = {
           <span>📅 ${dateStr}</span>
           <span>🕐 ${timeStr}</span>
           <span class="seats-badge ${seatsClass}">💺 ${r.available_seats} seat${r.available_seats!==1?'s':''}</span>
-          ${r.car_model ? `<span>🚗 ${this.esc(r.car_model)}</span>` : ''}
+          ${(r.car_name || r.car_model) ? `<span>🚗 ${this.esc(r.car_name || r.car_model)}</span>` : ''}
         </div>
         <div class="ride-bottom">
           <span class="ride-price ${priceClass}">${priceStr}</span>
@@ -217,6 +202,7 @@ const Rides = {
               <div class="info-item"><div class="info-icon">🕐</div><div class="info-label">Time</div><div class="info-value">${timeStr}</div></div>
               <div class="info-item"><div class="info-icon">💺</div><div class="info-label">Seats Left</div><div class="info-value">${r.available_seats} / ${r.total_seats}</div></div>
               <div class="info-item"><div class="info-icon">💰</div><div class="info-label">Price/Seat</div><div class="info-value">${priceStr}</div></div>
+              ${(r.car_name || r.car_model) ? `<div class="info-item"><div class="info-icon">🚗</div><div class="info-label">Car</div><div class="info-value">${this.esc(r.car_name || r.car_model)}</div></div>` : ''}
             </div>
             ${r.notes ? `<div style="padding:12px 16px;background:rgba(255,255,255,0.04);border-radius:8px;margin:16px 0;color:var(--text-secondary);font-size:0.9rem;">📝 ${this.esc(r.notes)}</div>` : ''}
             ${(r.from_lat && r.to_lat) ? '<div id="detailMap" class="ride-detail-map"></div>' : ''}

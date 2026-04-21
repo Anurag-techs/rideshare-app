@@ -5,13 +5,13 @@ const router = express.Router();
 
 router.post('/', authRequired, (req, res) => {
   try {
-    const { car_id, from_location, to_location, from_lat, from_lng, to_lat, to_lng, departure_time, total_seats, available_seats, price_per_seat, notes } = req.body;
+    const { car_name, from_location, to_location, from_lat, from_lng, to_lat, to_lng, departure_time, total_seats, available_seats, price_per_seat, notes } = req.body;
     if (!from_location || !to_location || !departure_time) return res.status(400).json({ error: 'From, to, and departure time are required.' });
     const seats = total_seats || 4;
-    const result = prepare('INSERT INTO rides (driver_id, car_id, from_location, to_location, from_lat, from_lng, to_lat, to_lng, departure_time, total_seats, available_seats, price_per_seat, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
-      req.user.id, car_id || null, from_location, to_location, from_lat || null, from_lng || null, to_lat || null, to_lng || null, departure_time, seats, available_seats || seats, price_per_seat || 0, notes || null
+    const result = prepare('INSERT INTO rides (driver_id, car_name, from_location, to_location, from_lat, from_lng, to_lat, to_lng, departure_time, total_seats, available_seats, price_per_seat, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+      req.user.id, car_name || null, from_location, to_location, from_lat || null, from_lng || null, to_lat || null, to_lng || null, departure_time, seats, available_seats || seats, price_per_seat || 0, notes || null
     );
-    const ride = prepare('SELECT r.*, u.name as driver_name, u.profile_photo as driver_photo, u.avg_rating as driver_rating, c.model as car_model, c.color as car_color, c.license_plate as car_plate FROM rides r JOIN users u ON r.driver_id = u.id LEFT JOIN cars c ON r.car_id = c.id WHERE r.id = ?').get(result.lastInsertRowid);
+    const ride = prepare('SELECT r.*, u.name as driver_name, u.profile_photo as driver_photo, u.avg_rating as driver_rating FROM rides r JOIN users u ON r.driver_id = u.id WHERE r.id = ?').get(result.lastInsertRowid);
     res.status(201).json({ ride });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error.' }); }
 });
