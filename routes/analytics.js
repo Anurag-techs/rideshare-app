@@ -34,7 +34,7 @@ router.post('/event', (req, res) => {
   const userId  = req.body.user_id || null;
   const meta    = JSON.stringify(req.body.meta || {}).slice(0, 500);
   const allowed = ['signup','login','ride_created','booking_made','page_view',
-                   'ride_searched','coupon_used','withdrawal_requested','referral_shared'];
+                   'ride_searched','coupon_used','withdrawal_requested'];
   if (!event || !allowed.includes(event)) {
     return res.status(400).json({ success: false, error: 'Invalid event.' });
   }

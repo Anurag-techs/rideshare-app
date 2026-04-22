@@ -103,7 +103,7 @@ app.get('/api/config', (req, res) => {
   res.json({
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY   || '',
     razorpayKeyId:    process.env.RAZORPAY_KEY_ID       || '',
-    commissionRate:   parseFloat(process.env.COMMISSION_RATE) || 0.10,
+    commissionRate:   parseFloat(process.env.COMMISSION_RATE) || 0.12,
   });
 });
 

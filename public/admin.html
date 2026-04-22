@@ -297,16 +297,7 @@
             <button class="btn btn-outline" id="toggleSurgeBtn" style="border:1px solid var(--border); background:none; color:var(--text);">Disabled</button>
           </div>
           
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div>
-              <div style="font-weight:600;">Referral Bonus (₹)</div>
-              <div style="font-size:0.8rem;color:var(--muted);">Reward given to users for inviting friends</div>
-            </div>
-            <div style="display:flex; gap:8px;">
-              <input type="number" id="referralBonusInput" style="width:70px; padding:6px; border-radius:6px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:white;" value="50">
-              <button class="btn btn-primary btn-sm" id="saveReferralBtn">Save</button>
-            </div>
-          </div>
+
         </div>
 
         <!-- Revenue / Funnel -->
@@ -638,7 +629,7 @@ async function loadGrowth() {
     sBtn.style.color = isSurgeEnabled ? 'var(--success)' : 'var(--text)';
     sBtn.style.borderColor = isSurgeEnabled ? 'var(--success)' : 'var(--border)';
     
-    document.getElementById('referralBonusInput').value = cfg.config.referral_bonus || 50;
+
 
     if (stats && stats.daily) {
       document.getElementById('metricViews').textContent = stats.daily.page_views || 0;
@@ -677,14 +668,7 @@ document.getElementById('toggleSurgeBtn').addEventListener('click', async () => 
   } catch(e) { toast(e.message, 'error'); }
 });
 
-document.getElementById('saveReferralBtn').addEventListener('click', async () => {
-  try {
-    const val = document.getElementById('referralBonusInput').value;
-    await api('POST', '/admin/config', { key: 'referral_bonus', value: val });
-    toast(`Referral bonus updated to ₹${val}`, 'success');
-    loadGrowth();
-  } catch(e) { toast(e.message, 'error'); }
-});
+
 
 
 // ── Auto-login if token exists ─────────────────────────────────────────────────

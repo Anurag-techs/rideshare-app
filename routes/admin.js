@@ -248,7 +248,6 @@ router.get('/config', (req, res) => {
     return ok(res, { 
       config: {
         surge_enabled: process.env.SURGE_ENABLED === 'true',
-        referral_bonus: process.env.REFERRAL_BONUS || 50,
       }
     });
   } catch (err) {
@@ -261,7 +260,6 @@ router.post('/config', (req, res) => {
   try {
     const { key, value } = req.body;
     if (key === 'surge_enabled') process.env.SURGE_ENABLED = value ? 'true' : 'false';
-    else if (key === 'referral_bonus') process.env.REFERRAL_BONUS = parseInt(value, 10);
     return ok(res, { message: 'Config updated.', key, value });
   } catch (err) {
     return fail(res, 'Server error.', 500);

@@ -1,4 +1,6 @@
 // rides.js — Razorpay + AI chat + Smart sort
+const COMMISSION_RATE = 0.12;
+
 const Rides = {
   mapInstance: null,
   fromMarker: null,
@@ -25,7 +27,7 @@ const Rides = {
       const price = parseFloat(priceInput.value) || 0;
       const preview = document.getElementById('commissionPreview');
       if (price <= 0) { preview.style.display = 'none'; return; }
-      const comm  = parseFloat((price * 0.10).toFixed(2));
+      const comm  = parseFloat((price * COMMISSION_RATE).toFixed(2));
       const earn  = parseFloat((price - comm).toFixed(2));
       document.getElementById('cpTotal').textContent = `₹${price}`;
       document.getElementById('cpComm').textContent  = `₹${comm}`;
@@ -355,7 +357,7 @@ const Rides = {
     const seats = parseInt(document.getElementById('seatCount').textContent) || 1;
     const price = parseFloat(document.getElementById('payPriceValue').value)  || 0;
     const total = seats * price;
-    const comm  = parseFloat((total * 0.10).toFixed(2));
+    const comm  = parseFloat((total * COMMISSION_RATE).toFixed(2));
     document.getElementById('payCommission').textContent = total > 0 ? `₹${comm}` : '₹0';
     document.getElementById('payTotal').textContent      = total > 0 ? `₹${total}` : 'Free';
   },
@@ -395,11 +397,7 @@ const Rides = {
         document.getElementById('paymentModal').classList.add('hidden');
         App.showToast('🎉 Free ride booked successfully!', 'success');
         _self.loadDetail(rideId);
-        setTimeout(() => {
-          if (confirm('🎁 Invite friends to RideShare and earn ₹50! Share your code on WhatsApp?')) {
-            if (window.Growth && window.API) Growth.shareReferral(API.getUser()?.referral_code || '');
-          }
-        }, 1500);
+
         return;
       }
 
@@ -498,11 +496,7 @@ const Rides = {
               App.showToast('💳 Payment verified — Ride booked! 🎉', 'success');
               _self.loadDetail(rideId);
               
-              setTimeout(() => {
-                if (confirm('🎁 Invite friends to RideShare and earn ₹50! Share your code on WhatsApp?')) {
-                  if (window.Growth && window.API) Growth.shareReferral(API.getUser()?.referral_code || '');
-                }
-              }, 1500);
+
 
               resolve();
 

@@ -1,8 +1,7 @@
 /**
- * routes/growth.js — Referrals, Coupons, Notifications
+ * routes/growth.js — Coupons, Notifications
  *
  * Endpoints:
- *   GET  /api/growth/referral           → Get own referral code + stats
  *   POST /api/growth/coupon/validate    → Validate coupon for a booking amount
  *   GET  /api/growth/notifications      → User's notifications (last 30)
  *   POST /api/growth/notifications/read → Mark all as read
@@ -24,48 +23,7 @@ function ok(res, data, s = 200)  { return res.status(s).json({ success: true,  .
 function fail(res, msg, s = 400) { return res.status(s).json({ success: false, error: msg }); }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function genReferralCode(name) {
-  const base = (name || 'USER').replace(/\s+/g, '').substring(0, 4).toUpperCase();
-  const rand  = crypto.randomBytes(3).toString('hex').toUpperCase();
-  return `${base}${rand}`;
-}
 
-function ensureReferralCode(userId) {
-  const user = prepare('SELECT referral_code, name FROM users WHERE id = ?').get(userId);
-  if (!user) return null;
-  if (user.referral_code) return user.referral_code;
-  let code;
-  let attempts = 0;
-  do {
-    code = genReferralCode(user.name);
-    attempts++;
-  } while (prepare('SELECT id FROM users WHERE referral_code = ?').get(code) && attempts < 10);
-  prepare('UPDATE users SET referral_code = ? WHERE id = ?').run(code, userId);
-  return code;
-}
-
-// ── GET /api/growth/referral ──────────────────────────────────────────────────
-router.get('/referral', authRequired, (req, res) => {
-  try {
-    const userId = parseInt(req.user.id, 10);
-    const code   = ensureReferralCode(userId);
-
-    const referrals = prepare(`
-      SELECT r.created_at, r.bonus_paid, r.bonus_amount, u.name AS referee_name
-      FROM   referrals r
-      JOIN   users u ON r.referee_id = u.id
-      WHERE  r.referrer_id = ?
-      ORDER  BY r.created_at DESC
-    `).all(userId);
-
-    const totalBonus = referrals.reduce((s, r) => s + (r.bonus_amount || 0), 0);
-
-    return ok(res, { referral_code: code, referrals, total_bonus: parseFloat(totalBonus.toFixed(2)) });
-  } catch (err) {
-    console.error('[GROWTH /referral]', err.message);
-    return fail(res, 'Server error.', 500);
-  }
-});
 
 // ── POST /api/growth/coupon/validate ─────────────────────────────────────────
 // Body: { code, amount }  → returns { valid, discount, final_amount }

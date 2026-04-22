@@ -38,21 +38,6 @@ const Growth = (() => {
       `Book now 👇\n${APP_URL}/#/ride/${ride.id}\n\n` +
       `_RideShare — Smarter Carpooling in India_ 🌿`;
     whatsapp(text);
-    track('referral_shared', { type: 'ride', ride_id: ride.id });
-  }
-
-  function shareReferral(code) {
-    const bonus = 50;
-    const text =
-      `🎉 *Join me on RideShare — India's smart carpooling app!*\n\n` +
-      `✅ Cheaper than Ola/Uber\n` +
-      `✅ Pay with UPI / GPay\n` +
-      `✅ Earn money as a driver\n\n` +
-      `Use my referral code *${code}* and get ₹${bonus} off your first ride!\n\n` +
-      `Sign up here 👇\n${APP_URL}/#/signup?ref=${code}\n\n` +
-      `_Let's travel smarter together_ 🚗💨`;
-    whatsapp(text);
-    track('referral_shared', { type: 'referral', code });
   }
 
   // ── Driver pitch copy ─────────────────────────────────────────────────────
@@ -74,7 +59,7 @@ const Growth = (() => {
   // ── Earnings estimator ────────────────────────────────────────────────────
   function estimateEarnings(distanceKm = 30, seatsOffered = 2, daysPerWeek = 5) {
     const pricePerKm    = 2.5;   // avg ₹2.5/km
-    const commissionPct = 0.10;
+    const commissionPct = 0.12;
     const perTrip       = distanceKm * pricePerKm * seatsOffered;
     const netPerTrip    = perTrip * (1 - commissionPct);
     const perDay        = netPerTrip * 2; // round trip
@@ -91,13 +76,8 @@ const Growth = (() => {
     if (localStorage.getItem('onboarding_done')) return;
     const modal = document.getElementById('onboardingModal');
     if (!modal) return;
-    const codeEl = document.getElementById('onboardingRefCode');
-    if (codeEl && user?.referral_code) codeEl.textContent = user.referral_code;
     modal.classList.remove('hidden');
 
-    document.getElementById('onboardingShareBtn')?.addEventListener('click', () => {
-      shareReferral(user?.referral_code || '');
-    });
     document.getElementById('onboardingCloseBtn')?.addEventListener('click', () => {
       modal.classList.add('hidden');
       localStorage.setItem('onboarding_done', '1');
@@ -181,6 +161,6 @@ const Growth = (() => {
     } catch (_) {}
   }
 
-  return { track, shareRide, shareReferral, copyDriverPitch, estimateEarnings,
+  return { track, shareRide, copyDriverPitch, estimateEarnings,
            showOnboarding, loadNotifBell, showNotifPanel, loadPlatformStats, loadActivityFeed };
 })();

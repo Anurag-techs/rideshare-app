@@ -39,15 +39,13 @@ const Auth = {
     const email    = document.getElementById('signupEmail').value;
     const phone    = document.getElementById('signupPhone').value;
     const password = document.getElementById('signupPassword').value;
-    const refEl    = document.getElementById('signupRef');
-    const referral_code = (refEl?.value || '').trim().toUpperCase() || undefined;
     try {
       this.setLoading(btn, true);
-      const data = await API.post('/auth/signup', { name, email, phone, password, referral_code });
+      const data = await API.post('/auth/signup', { name, email, phone, password });
       API.setToken(data.token);
       API.setUser(data.user);
       App.updateNav();
-      Growth.track('signup', { has_referral: !!referral_code });
+      Growth.track('signup', {});
       Growth.loadNotifBell();
       App.showToast('🎉 Welcome to RideShare!', 'success');
       window.location.hash = '#/dashboard';

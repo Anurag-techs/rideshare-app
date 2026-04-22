@@ -35,7 +35,7 @@ function ok(res, data, status = 200)  { return res.status(status).json({ success
 function fail(res, msg, status = 400) { return res.status(status).json({ success: false, error: msg }); }
 
 // ── Load & validate Razorpay credentials ─────────────────────────────────────
-const COMMISSION_RATE = parseFloat(process.env.COMMISSION_RATE) || 0.10;
+const COMMISSION_RATE = parseFloat(process.env.COMMISSION_RATE) || 0.12;
 const rzpKeyId        = (process.env.RAZORPAY_KEY_ID     || '').trim();
 const rzpKeySecret    = (process.env.RAZORPAY_KEY_SECRET || '').trim();
 

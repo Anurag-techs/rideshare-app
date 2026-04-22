@@ -17,7 +17,7 @@ services:
       - key: JWT_SECRET
         generateValue: true          # Render auto-generates a secure random value
       - key: COMMISSION_RATE
-        value: "0.10"
+        value: "0.12"
       # ── Razorpay Test Keys ────────────────────────────────────────────────────
       # Switch to rzp_live_ keys when going to production
       - key: RAZORPAY_KEY_ID

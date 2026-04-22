@@ -122,7 +122,7 @@
         <div class="container">
           <h2 class="section-title">How It Works</h2>
           <div class="features-grid">
-            <div class="feature-card"><div class="feature-icon">📝</div><h3>1. Create Account</h3><p>Sign up in 30 seconds. Use a referral code to get <strong>₹50 off</strong> your first ride.</p></div>
+            <div class="feature-card"><div class="feature-icon">📝</div><h3>1. Create Account</h3><p>Sign up in 30 seconds to start booking rides.</p></div>
             <div class="feature-card"><div class="feature-icon">🗺️</div><h3>2. Find or Post</h3><p>Search rides on your route or offer empty seats and earn while you drive.</p></div>
             <div class="feature-card"><div class="feature-icon">💳</div><h3>3. Pay with UPI</h3><p>Book instantly via GPay, PhonePe, Paytm. 100% secure Razorpay gateway.</p></div>
             <div class="feature-card"><div class="feature-icon">💰</div><h3>Earn as Driver</h3><p>Drivers earn <strong>₹500–₹2000/day</strong> offering seats on routes they already drive.</p></div>
@@ -250,10 +250,8 @@
         <div style="display:flex;flex-direction:column;gap:8px;text-align:left;margin-bottom:20px;">
           <div class="glass-card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;"><span style="font-size:1.2rem;">🔍</span><span><strong>Find a ride</strong> — search by route, book in seconds</span></div>
           <div class="glass-card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;"><span style="font-size:1.2rem;">🚗</span><span><strong>Offer a ride</strong> — post seats, earn ₹500–2000/day</span></div>
-          <div class="glass-card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;"><span style="font-size:1.2rem;">🎁</span><span>Your referral code: <strong id="onboardingRefCode" style="color:var(--primary);letter-spacing:.08em;">—</strong> — share it, earn ₹50!</span></div>
         </div>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-          <button id="onboardingShareBtn" class="btn btn-primary">📲 Share on WhatsApp</button>
           <button id="onboardingCloseBtn" class="btn btn-ghost">Get Started →</button>
         </div>
       </div>
@@ -313,10 +311,6 @@
             <div class="form-group">
               <label for="signupPassword">Password</label>
               <input type="password" id="signupPassword" placeholder="Min. 6 characters" required minlength="6">
-            </div>
-            <div class="form-group">
-              <label for="signupRef" style="font-size:0.85rem;">Referral Code <span style="color:var(--text-muted)">(optional — get ₹50 bonus!)</span></label>
-              <input type="text" id="signupRef" placeholder="e.g. JOHN4A2B" style="text-transform:uppercase;">
             </div>
             <button type="submit" class="btn btn-primary btn-full" id="signupSubmit">
               <span class="btn-text">Create Account</span>
@@ -448,7 +442,7 @@
                   <span>💰 Total per seat</span><span id="cpTotal">₹0</span>
                 </div>
                 <div class="commission-row">
-                  <span>🏦 Platform fee (10%)</span><span id="cpComm" style="color:var(--warning)">₹0</span>
+                  <span>🏦 Platform fee (12%)</span><span id="cpComm" style="color:var(--warning)">₹0</span>
                 </div>
                 <div class="commission-row" style="font-weight:700;">
                   <span>💵 You earn per seat</span><span id="cpEarn" style="color:var(--success)">₹0</span>
@@ -763,7 +757,7 @@
             </div>
             <div class="payment-divider"></div>
             <div class="payment-row">
-              <span>Platform fee (10%)</span>
+              <span>Platform fee (12%)</span>
               <span id="payCommission" style="color:var(--warning)">₹0</span>
             </div>
             <div class="payment-row total">
