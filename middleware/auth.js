@@ -65,7 +65,7 @@ function authOptional(req, res, next) {
  */
 function generateToken(user) {
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name },
+    { id: user.id, email: user.email, name: user.name, is_admin: !!user.is_admin },
     JWT_SECRET,
     { expiresIn: '7d' }
   );

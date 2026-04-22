@@ -15,8 +15,8 @@ const Auth = {
   },
 
   async login() {
-    const btn = document.getElementById('loginSubmit');
-    const email = document.getElementById('loginEmail').value;
+    const btn      = document.getElementById('loginSubmit');
+    const email    = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
     try {
       this.setLoading(btn, true);
@@ -24,7 +24,9 @@ const Auth = {
       API.setToken(data.token);
       API.setUser(data.user);
       App.updateNav();
-      App.showToast('Welcome back!', 'success');
+      Growth.track('login');
+      Growth.loadNotifBell();
+      App.showToast('Welcome back! 👋', 'success');
       window.location.hash = '#/dashboard';
     } catch (err) {
       App.showToast(err.message, 'error');
@@ -32,19 +34,25 @@ const Auth = {
   },
 
   async signup() {
-    const btn = document.getElementById('signupSubmit');
-    const name = document.getElementById('signupName').value;
-    const email = document.getElementById('signupEmail').value;
-    const phone = document.getElementById('signupPhone').value;
+    const btn      = document.getElementById('signupSubmit');
+    const name     = document.getElementById('signupName').value;
+    const email    = document.getElementById('signupEmail').value;
+    const phone    = document.getElementById('signupPhone').value;
     const password = document.getElementById('signupPassword').value;
+    const refEl    = document.getElementById('signupRef');
+    const referral_code = (refEl?.value || '').trim().toUpperCase() || undefined;
     try {
       this.setLoading(btn, true);
-      const data = await API.post('/auth/signup', { name, email, phone, password });
+      const data = await API.post('/auth/signup', { name, email, phone, password, referral_code });
       API.setToken(data.token);
       API.setUser(data.user);
       App.updateNav();
-      App.showToast('Account created! Welcome!', 'success');
+      Growth.track('signup', { has_referral: !!referral_code });
+      Growth.loadNotifBell();
+      App.showToast('🎉 Welcome to RideShare!', 'success');
       window.location.hash = '#/dashboard';
+      // Show onboarding modal after short delay
+      setTimeout(() => Growth.showOnboarding(data.user), 600);
     } catch (err) {
       App.showToast(err.message, 'error');
     } finally { this.setLoading(btn, false); }

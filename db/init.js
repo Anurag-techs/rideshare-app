@@ -33,15 +33,24 @@ async function initialize() {
   // ── Users ──────────────────────────────────────────────────────────────────
   db.run(`
     CREATE TABLE IF NOT EXISTS users (
-      id               INTEGER PRIMARY KEY AUTOINCREMENT,
-      name             TEXT    NOT NULL,
-      email            TEXT    UNIQUE NOT NULL,
-      phone            TEXT,
-      password_hash    TEXT    NOT NULL,
-      profile_photo    TEXT    DEFAULT NULL,
-      avg_rating       REAL    DEFAULT 0,
-      total_ratings    INTEGER DEFAULT 0,
-      created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
+      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      name                  TEXT    NOT NULL,
+      email                 TEXT    UNIQUE NOT NULL,
+      phone                 TEXT,
+      password_hash         TEXT    NOT NULL,
+      profile_photo         TEXT    DEFAULT NULL,
+      avg_rating            REAL    DEFAULT 0,
+      total_ratings         INTEGER DEFAULT 0,
+      wallet_balance        REAL    DEFAULT 0,
+      total_withdrawn       REAL    DEFAULT 0,
+      is_admin              INTEGER DEFAULT 0,
+      upi_id                TEXT    DEFAULT NULL,
+      account_number        TEXT    DEFAULT NULL,
+      ifsc                  TEXT    DEFAULT NULL,
+      referral_code         TEXT    UNIQUE DEFAULT NULL,
+      referred_by           INTEGER DEFAULT NULL,
+      referral_bonus_claimed INTEGER DEFAULT 0,
+      created_at            DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -77,6 +86,9 @@ async function initialize() {
       total_seats     INTEGER NOT NULL DEFAULT 4,
       available_seats INTEGER NOT NULL DEFAULT 4,
       price_per_seat  REAL    DEFAULT 0,
+      surge_multiplier REAL   DEFAULT 1.0,
+      is_featured     INTEGER DEFAULT 0,
+      featured_until  DATETIME DEFAULT NULL,
       notes           TEXT,
       status          TEXT    DEFAULT 'active' CHECK(status IN ('active','completed','cancelled')),
       created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -146,7 +158,149 @@ async function initialize() {
     )
   `);
 
-  // ── Safe migrations (add new columns to existing tables without breaking) ──
+  // ── Withdrawals ────────────────────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS withdrawals (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id        INTEGER NOT NULL,
+      amount         REAL    NOT NULL CHECK(amount > 0),
+      status         TEXT    DEFAULT 'pending'
+                     CHECK(status IN ('pending','paid','rejected')),
+      upi_id         TEXT,
+      note           TEXT,
+      payment_method TEXT    DEFAULT NULL,
+      payment_ref    TEXT    DEFAULT NULL,
+      processed_at   DATETIME DEFAULT NULL,
+      created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // ── Transactions (audit log) ────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS wallet_transactions (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL,
+      type       TEXT    NOT NULL CHECK(type IN ('credit','debit')),
+      amount     REAL    NOT NULL CHECK(amount > 0),
+      reason     TEXT    NOT NULL,
+      ref_id     INTEGER DEFAULT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // ── Platform Earnings ─────────────────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS platform_earnings (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      booking_id INTEGER NOT NULL,
+      ride_id    INTEGER NOT NULL,
+      driver_id  INTEGER NOT NULL,
+      amount     REAL    NOT NULL CHECK(amount >= 0),
+      type       TEXT    DEFAULT 'commission' CHECK(type IN ('commission','withdrawal_fee','feature_fee')),
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+      FOREIGN KEY (ride_id)    REFERENCES rides(id)    ON DELETE CASCADE,
+      FOREIGN KEY (driver_id)  REFERENCES users(id)    ON DELETE CASCADE
+    )
+  `);
+
+  // ── Coupons ───────────────────────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS coupons (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      code            TEXT    UNIQUE NOT NULL,
+      discount_amount REAL    NOT NULL CHECK(discount_amount > 0),
+      discount_type   TEXT    DEFAULT 'flat' CHECK(discount_type IN ('flat','percent')),
+      max_uses        INTEGER DEFAULT 100,
+      used_count      INTEGER DEFAULT 0,
+      min_amount      REAL    DEFAULT 0,
+      expiry_date     DATETIME DEFAULT NULL,
+      is_active       INTEGER DEFAULT 1,
+      created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS coupon_uses (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      coupon_id  INTEGER NOT NULL,
+      user_id    INTEGER NOT NULL,
+      booking_id INTEGER NOT NULL,
+      discount   REAL    NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(coupon_id, user_id),
+      FOREIGN KEY (coupon_id)  REFERENCES coupons(id)  ON DELETE CASCADE,
+      FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE,
+      FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE
+    )
+  `);
+
+  // ── Notifications ────────────────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL,
+      title      TEXT    NOT NULL,
+      message    TEXT    NOT NULL,
+      type       TEXT    DEFAULT 'info' CHECK(type IN ('info','success','warning','error')),
+      is_read    INTEGER DEFAULT 0,
+      ref_type   TEXT    DEFAULT NULL,
+      ref_id     INTEGER DEFAULT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // ── Referrals ───────────────────────────────────────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS referrals (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      referrer_id   INTEGER NOT NULL,
+      referee_id    INTEGER NOT NULL UNIQUE,
+      bonus_paid    INTEGER DEFAULT 0,
+      bonus_amount  REAL    DEFAULT 0,
+      created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (referrer_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (referee_id)  REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  // ── Analytics Events (conversion tracking) ───────────────────────────────
+  db.run(`
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      event      TEXT    NOT NULL,
+      user_id    INTEGER DEFAULT NULL,
+      meta       TEXT    DEFAULT '{}',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  _safeAddColumns('users', [
+    ['wallet_balance',          'REAL    DEFAULT 0'],
+    ['total_withdrawn',         'REAL    DEFAULT 0'],
+    ['is_admin',                'INTEGER DEFAULT 0'],
+    ['upi_id',                  'TEXT    DEFAULT NULL'],
+    ['account_number',          'TEXT    DEFAULT NULL'],
+    ['ifsc',                    'TEXT    DEFAULT NULL'],
+    ['referral_code',           'TEXT    DEFAULT NULL'],
+    ['referred_by',             'INTEGER DEFAULT NULL'],
+    ['referral_bonus_claimed',  'INTEGER DEFAULT 0'],
+  ]);
+
+  _safeAddColumns('rides', [
+    ['car_name',         'TEXT'],
+    ['surge_multiplier', 'REAL    DEFAULT 1.0'],
+    ['is_featured',      'INTEGER DEFAULT 0'],
+    ['featured_until',   'DATETIME DEFAULT NULL'],
+  ]);
+
+  _safeAddColumns('platform_earnings', [
+    ['type', "TEXT DEFAULT 'commission'"],
+  ]);
+
   _safeAddColumns('bookings', [
     ['total_amount',        'REAL    DEFAULT 0'],
     ['commission_amount',   'REAL    DEFAULT 0'],
@@ -155,15 +309,20 @@ async function initialize() {
     ['razorpay_order_id',   'TEXT'],
     ['razorpay_payment_id', 'TEXT'],
     ['razorpay_signature',  'TEXT'],
-    // rename old payment_intent_id → keep for backward compat
     ['payment_intent_id',   'TEXT'],
+    ['coupon_code',         'TEXT    DEFAULT NULL'],
+    ['coupon_discount',     'REAL    DEFAULT 0'],
   ]);
 
-  _safeAddColumns('rides', [
-    ['car_name', 'TEXT'],
+  _safeAddColumns('withdrawals', [
+    ['processed_at',   'DATETIME DEFAULT NULL'],
+    ['payment_method', 'TEXT     DEFAULT NULL'],
+    ['payment_ref',    'TEXT     DEFAULT NULL'],
   ]);
+
 
   saveDb();
+
   console.log('✅ Database initialized successfully');
 }
 

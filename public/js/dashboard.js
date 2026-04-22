@@ -1,4 +1,4 @@
-﻿// Dashboard module
+// Dashboard module
 const Dashboard = {
   async load() {
     // â”€â”€ Step 1: Fetch fresh user data first â€” bail out if auth fails â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -162,7 +162,125 @@ const Dashboard = {
         }).join('');
       }
     }
-  }
+    // ── Step 7: Wallet + Earnings tab ────────────────────────────────────────
+    await this.loadEarnings();
+    this._initWalletEvents();
+  },
+
+  // ── Earnings + Wallet helpers ──────────────────────────────────────────────
+  async loadEarnings() {
+    try {
+      const [summary, balData, wdData, chartData] = await Promise.all([
+        API.get('/earnings/summary').catch(() => ({ summary: {} })),
+        API.get('/wallet/balance').catch(() => ({ balance: 0 })),
+        API.get('/wallet/withdrawals').catch(() => ({ withdrawals: [] })),
+        API.get('/earnings/chart').catch(() => ({ chart: [] })),
+      ]);
+
+      const s = summary.summary || {};
+
+      // ── Earnings summary cards ────────────────────────────────────────────
+      const se = id => { const el = document.getElementById(id); if (el) return el; return { textContent: '' }; };
+      se('earnTotalEarned').textContent    = `₹${(s.total_earned       || 0).toFixed(2)}`;
+      se('earnWalletBal').textContent      = `₹${(balData.balance      || 0).toFixed(2)}`;
+      se('earnWithdrawn').textContent      = `₹${(s.total_withdrawn    || 0).toFixed(2)}`;
+      se('earnPending').textContent        = `₹${(s.pending_withdrawal || 0).toFixed(2)}`;
+      se('earnRidesDriven').textContent    = s.rides_driven    || 0;
+      se('earnPaidBookings').textContent   = s.paid_bookings   || 0;
+
+      // ── Balance display (wallet tab) ──────────────────────────────────────
+      const balEl = document.getElementById('walletBalanceDisplay');
+      if (balEl) balEl.textContent = `₹${(balData.balance || 0).toFixed(2)}`;
+
+      // ── Weekly chart ──────────────────────────────────────────────────────
+      const chartEl = document.getElementById('earningsChart');
+      if (chartEl) {
+        const chart = chartData.chart || [];
+        const max   = Math.max(...chart.map(c => c.earned), 1);
+        chartEl.innerHTML = chart.length ? `
+          <div style="display:flex;align-items:flex-end;gap:6px;height:80px;padding-top:4px;">
+            ${chart.map(c => {
+              const pct = Math.round((c.earned / max) * 100);
+              return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+                <div style="font-size:0.62rem;color:var(--text-muted);">₹${c.earned.toFixed(0)}</div>
+                <div style="width:100%;background:var(--primary);border-radius:4px 4px 0 0;height:${Math.max(pct, 2)}%;opacity:0.85;transition:height .3s;"></div>
+                <div style="font-size:0.6rem;color:var(--text-muted);">W${c.week.split('-')[1]}</div>
+              </div>`;
+            }).join('')}
+          </div>` : '<div style="color:var(--text-muted);font-size:0.85rem;">No earnings data yet.</div>';
+      }
+
+      // ── Withdrawals list ──────────────────────────────────────────────────
+      const listEl = document.getElementById('withdrawalsList');
+      if (listEl) {
+        const wds = wdData.withdrawals || [];
+        if (!wds.length) {
+          listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">💸</div><h3>No withdrawals yet</h3><p>Submit your first withdrawal request when you have earnings.</p></div>';
+        } else {
+          const statusColor = { pending: 'var(--warning)', paid: 'var(--success)', rejected: 'var(--error)' };
+          listEl.innerHTML = wds.map(w => {
+            const date = new Date(w.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+            return `<div class="ride-card">
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                <div>
+                  <div style="font-weight:700;font-size:1.05rem;">₹${w.amount.toFixed(2)}</div>
+                  ${w.upi_id ? `<div style="font-size:0.8rem;color:var(--text-muted);">UPI: ${Rides.esc(w.upi_id)}</div>` : ''}
+                  ${w.payment_method ? `<div style="font-size:0.78rem;color:var(--text-muted);">via ${w.payment_method} ${w.payment_ref ? '• ' + w.payment_ref : ''}</div>` : ''}
+                  <div style="font-size:0.78rem;color:var(--text-muted);">📅 ${date}</div>
+                </div>
+                <span class="seats-badge" style="color:${statusColor[w.status] || 'var(--text-secondary)'};">${w.status.toUpperCase()}</span>
+              </div>
+              ${w.note ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:6px;">📝 ${Rides.esc(w.note)}</div>` : ''}
+            </div>`;
+          }).join('');
+        }
+      }
+    } catch (err) {
+      console.error('[Dashboard] Earnings load error:', err.message);
+    }
+  },
+
+  _initWalletEvents() {
+    const openBtn   = document.getElementById('openWithdrawBtn');
+    const form      = document.getElementById('withdrawForm');
+    const cancelBtn = document.getElementById('cancelWithdrawBtn');
+    const submitBtn = document.getElementById('submitWithdrawBtn');
+
+    openBtn?.addEventListener('click', () => {
+      form?.classList.remove('hidden');
+      document.getElementById('withdrawAmount')?.focus();
+    });
+
+    cancelBtn?.addEventListener('click', () => {
+      form?.classList.add('hidden');
+      document.getElementById('withdrawAmount').value = '';
+      document.getElementById('withdrawUpi').value    = '';
+    });
+
+    submitBtn?.addEventListener('click', async () => {
+      const amount = parseFloat(document.getElementById('withdrawAmount').value);
+      const upiId  = document.getElementById('withdrawUpi').value.trim();
+
+      if (!amount || isNaN(amount) || amount < 10) {
+        App.showToast('Enter a valid amount (minimum ₹10).', 'error');
+        return;
+      }
+
+      Auth.setLoading(submitBtn, true);
+      try {
+        const res = await API.post('/wallet/withdraw', { amount, upi_id: upiId });
+        App.showToast(res.message || '✅ Withdrawal request submitted!', 'success');
+        form?.classList.add('hidden');
+        document.getElementById('withdrawAmount').value = '';
+        document.getElementById('withdrawUpi').value    = '';
+        await this.loadWallet(); // refresh balance + history
+      } catch (err) {
+        App.showToast('❌ ' + err.message, 'error');
+      } finally {
+        Auth.setLoading(submitBtn, false);
+      }
+    });
+  },
 };
 
 // Cars module

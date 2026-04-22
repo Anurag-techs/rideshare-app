@@ -1,7 +1,10 @@
 node_modules/
 .env
+.env.*
+!.env.example
 uploads/
 *.log
+*.sqlite-journal
 
 # database.sqlite is intentionally NOT ignored so Render gets the schema file.
 # On Render, mount a persistent disk at /data and set DB_PATH=/data/database.sqlite

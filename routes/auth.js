@@ -1,9 +1,11 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const multer = require('multer');
-const path = require('path');
-const { prepare } = require('../db/init');
+const bcrypt  = require('bcryptjs');
+const crypto  = require('crypto');
+const multer  = require('multer');
+const path    = require('path');
+const { prepare, transaction } = require('../db/init');
 const { authRequired, generateToken } = require('../middleware/auth');
+const { notify } = require('../utils/notify');
 
 const router = express.Router();
 
@@ -13,16 +15,60 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: (req, file, cb) => { const ok = /jpeg|jpg|png|gif|webp/.test(path.extname(file.originalname).toLowerCase()); cb(null, ok); } });
 
+function genReferralCode(name) {
+  const base = (name || 'USER').replace(/\s+/g, '').substring(0, 4).toUpperCase();
+  const rand  = crypto.randomBytes(3).toString('hex').toUpperCase();
+  return `${base}${rand}`;
+}
+
 router.post('/signup', async (req, res) => {
   try {
     const { name, email, phone, password } = req.body;
+    const refCode = (req.body.referral_code || req.query.ref || '').trim().toUpperCase();
+
     if (!name || !email || !password) return res.status(400).json({ error: 'Name, email, and password are required.' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     const existing = prepare('SELECT id FROM users WHERE email = ?').get(email);
     if (existing) return res.status(409).json({ error: 'An account with this email already exists.' });
+
     const password_hash = await bcrypt.hash(password, 10);
-    const result = prepare('INSERT INTO users (name, email, phone, password_hash) VALUES (?, ?, ?, ?)').run(name, email, phone || null, password_hash);
-    const user = prepare('SELECT id, name, email, phone, profile_photo, avg_rating, total_ratings, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
+
+    // Generate unique referral code
+    let myCode;
+    let attempts = 0;
+    do {
+      myCode = genReferralCode(name);
+      attempts++;
+    } while (prepare('SELECT id FROM users WHERE referral_code = ?').get(myCode) && attempts < 10);
+
+    // Resolve referrer
+    const referrer = refCode
+      ? prepare('SELECT id FROM users WHERE referral_code = ?').get(refCode)
+      : null;
+
+    const doSignup = transaction(() => {
+      const result = prepare(
+        'INSERT INTO users (name, email, phone, password_hash, referral_code, referred_by) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(name, email, phone || null, password_hash, myCode, referrer ? referrer.id : null);
+
+      const newUserId = result.lastInsertRowid;
+
+      // Link referral relationship
+      if (referrer) {
+        prepare(
+          'INSERT OR IGNORE INTO referrals (referrer_id, referee_id) VALUES (?, ?)'
+        ).run(referrer.id, newUserId);
+      }
+
+      return newUserId;
+    });
+
+    const newUserId = doSignup();
+    const user = prepare('SELECT id, name, email, phone, profile_photo, avg_rating, total_ratings, referral_code, created_at FROM users WHERE id = ?').get(newUserId);
+
+    // Welcome notification
+    notify(newUserId, '🎉 Welcome to RideShare!', `Hi ${name}! Your account is ready. Share your referral code ${myCode} to earn bonuses!`, 'success');
+
     const token = generateToken(user);
     res.status(201).json({ token, user });
   } catch (err) { console.error('Signup error:', err); res.status(500).json({ error: 'Server error during signup.' }); }

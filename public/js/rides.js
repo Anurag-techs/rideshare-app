@@ -11,7 +11,7 @@ const Rides = {
     document.getElementById('searchForm')?.addEventListener('submit', e => { e.preventDefault(); this.search(); });
     document.getElementById('createRideForm')?.addEventListener('submit', e => { e.preventDefault(); this.create(); });
     this.initPaymentModal();
-    this.initAIChat();
+    this.initSmartSearch();
     this.initSortPills();
     this.initCommissionPreview();
   },
@@ -50,57 +50,49 @@ const Rides = {
 
   async applySortAndRender(rides) {
     if (!rides.length) { this.renderRides([]); return; }
-    try {
-      const data = await API.post('/ai/sort', { rides, preference: this._currentSort });
-      this.renderRides(data.rides);
-    } catch { this.renderRides(rides); }
-  },
-
-  // ── AI Chat ───────────────────────────────────────────────────────────────
-  initAIChat() {
-    const sendBtn = document.getElementById('aiChatSend');
-    const input   = document.getElementById('aiChatInput');
-    if (!sendBtn) return;
-    sendBtn.addEventListener('click', () => this.sendAIMessage());
-    input?.addEventListener('keydown', e => { if (e.key === 'Enter') this.sendAIMessage(); });
-  },
-
-  async sendAIMessage() {
-    const input = document.getElementById('aiChatInput');
-    const msg   = input?.value?.trim();
-    if (!msg) return;
-    input.value = '';
-    this.appendAIMsg(msg, 'user');
-    const typing = this.appendAIMsg('...', 'bot');
-    try {
-      const res = await API.post('/ai/chat', { message: msg });
-      typing.remove();
-      this.appendAIMsg(res.reply || 'Here are your results!', 'bot');
-      // Apply filters
-      const f = res.filters || {};
-      if (f.from) document.getElementById('searchFrom').value = f.from;
-      if (f.to)   document.getElementById('searchTo').value   = f.to;
-      if (f.date) document.getElementById('searchDate').value = f.date;
-      if (f.max_price) document.getElementById('searchMaxPrice').value = f.max_price;
-      if (f.sort) document.getElementById('searchSort').value = f.sort;
-      await this.search();
-    } catch (err) {
-      typing.remove();
-      this.appendAIMsg('Sorry, could not process that. Try searching manually.', 'bot');
+    const sorted = [...rides];
+    if (this._currentSort === 'cheap') {
+      sorted.sort((a, b) => (a.price_per_seat || 0) - (b.price_per_seat || 0));
+    } else if (this._currentSort === 'fast') {
+      sorted.sort((a, b) => new Date(a.departure_time) - new Date(b.departure_time));
+    } else if (this._currentSort === 'safe') {
+      sorted.sort((a, b) => (b.driver_rating || 0) - (a.driver_rating || 0));
+    } else {
+      // balanced
+      sorted.sort((a, b) => {
+        const scoreA = (a.price_per_seat || 0) + (new Date(a.departure_time).getTime() / 10000000000);
+        const scoreB = (b.price_per_seat || 0) + (new Date(b.departure_time).getTime() / 10000000000);
+        return scoreA - scoreB;
+      });
     }
+    this.renderRides(sorted);
   },
 
-  appendAIMsg(text, type) {
-    const box = document.getElementById('aiMessages');
-    if (!box) return { remove: () => {} };
-    const div = document.createElement('div');
-    div.className = `ai-msg ai-msg-${type}`;
-    div.innerHTML = type === 'bot'
-      ? `<span class="ai-msg-avatar">🤖</span><div class="ai-msg-bubble">${this.esc(text)}</div>`
-      : `<div class="ai-msg-bubble ai-msg-user-bubble">${this.esc(text)}</div>`;
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-    return div;
+  // ── Smart Search ──────────────────────────────────────────────────────────
+  initSmartSearch() {
+    const input = document.getElementById('smartSearchInput');
+    if (!input) return;
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const val = input.value.trim().toLowerCase();
+        if (!val) return;
+        
+        document.getElementById('searchFrom').value = '';
+        document.getElementById('searchTo').value = '';
+        
+        const toMatch = val.match(/to\s+([a-z]+)/);
+        const fromMatch = val.match(/from\s+([a-z]+)/);
+        
+        if (toMatch) document.getElementById('searchTo').value = toMatch[1];
+        if (fromMatch) document.getElementById('searchFrom').value = fromMatch[1];
+        if (!toMatch && !fromMatch) {
+          document.getElementById('searchFrom').value = val;
+        }
+        
+        this.search();
+      }
+    });
   },
 
   // ── Create Ride Map ───────────────────────────────────────────────────────
@@ -211,10 +203,22 @@ const Rides = {
     const timeStr  = date.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
     const priceStr = r.price_per_seat > 0 ? `₹${r.price_per_seat}` : 'Free';
     const priceClass  = r.price_per_seat > 0 ? '' : 'free';
-    const seatsClass  = r.available_seats <= 1 ? 'low' : '';
+    const seatsClass  = r.available_seats <= 2 ? 'low' : '';
     const driverInit  = r.driver_name?.charAt(0).toUpperCase() || 'D';
     const ratingStr   = r.driver_rating > 0 ? `⭐ ${r.driver_rating}` : '';
-    const aiScore     = r._aiScore !== undefined ? `<span class="ai-score-badge">AI ${r._aiScore}%</span>` : '';
+    
+    // Social Proof & Conversion Triggers
+    const isVerified = (r.driver_completed_rides > 0 || r.driver_rating > 0) ? '<span style="color:var(--success);font-size:0.8rem;margin-left:4px;" title="Verified Driver">✓</span>' : '';
+    const urgency    = r.available_seats <= 3 ? `<span style="color:var(--warning);font-size:0.75rem;font-weight:600;margin-left:8px;">🔥 Only ${r.available_seats} left!</span>` : '';
+    const bookedText = r.booking_count > 0 ? `<div style="font-size:0.75rem;color:var(--success);margin-top:4px;">✨ Booked ${r.booking_count} time${r.booking_count>1?'s':''} today</div>` : '';
+    
+    // Price Comparison (Mock Cab Price = 2.5x to 3.5x)
+    let comparisonHTML = '';
+    if (r.price_per_seat > 0) {
+      const cabPrice = Math.floor(r.price_per_seat * 3.2);
+      const savings = cabPrice - r.price_per_seat;
+      comparisonHTML = `<div style="font-size:0.75rem;color:var(--text-muted);text-align:right;">Cab: <del>₹${cabPrice}</del> <span style="color:var(--success);font-weight:600;">(Save ₹${savings})</span></div>`;
+    }
 
     return `
       <div class="ride-card" data-id="${r.id}">
@@ -225,16 +229,20 @@ const Rides = {
           <span>🕐 ${timeStr}</span>
           <span class="seats-badge ${seatsClass}">💺 ${r.available_seats} seat${r.available_seats!==1?'s':''}</span>
           ${(r.car_name||r.car_model)?`<span>🚗 ${this.esc(r.car_name||r.car_model)}</span>`:''}
-          ${aiScore}
+          ${urgency}
         </div>
-        <div class="ride-bottom">
-          <span class="ride-price ${priceClass}">${priceStr}</span>
+        ${bookedText}
+        <div class="ride-bottom" style="align-items:flex-end;">
           <div class="ride-driver">
             <div class="ride-driver-avatar">${r.driver_photo?`<img src="${r.driver_photo}" alt="">`:driverInit}</div>
             <div class="ride-driver-info">
-              <div class="name">${this.esc(r.driver_name)}</div>
-              <div class="rating">${ratingStr}</div>
+              <div class="name">${this.esc(r.driver_name)}${isVerified}</div>
+              <div class="rating">${ratingStr} ${r.driver_completed_rides ? `<span style="font-size:0.75rem;color:var(--text-muted);">(${r.driver_completed_rides} rides)</span>` : ''}</div>
             </div>
+          </div>
+          <div>
+            <span class="ride-price ${priceClass}">${priceStr}</span>
+            ${comparisonHTML}
           </div>
         </div>
       </div>`;
@@ -274,8 +282,8 @@ const Rides = {
             <div style="display:flex;align-items:center;gap:12px;padding:16px 0;border-top:1px solid var(--glass-border);margin-top:16px;">
               <div class="ride-driver-avatar" style="width:48px;height:48px;font-size:1.2rem;">${r.driver_photo?`<img src="${r.driver_photo}" alt="">`:r.driver_name?.charAt(0).toUpperCase()}</div>
               <div>
-                <div style="font-weight:600;">${this.esc(r.driver_name)}</div>
-                <div style="font-size:0.85rem;color:var(--text-secondary);">${r.driver_rating>0?`⭐ ${r.driver_rating} (${r.driver_total_ratings} reviews)`:'New driver'}</div>
+                <div style="font-weight:600;">${this.esc(r.driver_name)} ${(r.driver_completed_rides > 0 || r.driver_rating > 0) ? '<span style="color:var(--success);" title="Verified Driver">✅ Verified</span>' : ''}</div>
+                <div style="font-size:0.85rem;color:var(--text-secondary);">${r.driver_rating>0?`⭐ ${r.driver_rating} (${r.driver_total_ratings} reviews)`:'New driver'} ${r.driver_completed_rides > 0 ? `• ${r.driver_completed_rides} rides completed` : ''}</div>
                 ${r.driver_phone?`<div style="font-size:0.85rem;color:var(--text-muted);">📞 ${r.driver_phone}</div>`:''}
               </div>
             </div>
@@ -387,6 +395,11 @@ const Rides = {
         document.getElementById('paymentModal').classList.add('hidden');
         App.showToast('🎉 Free ride booked successfully!', 'success');
         _self.loadDetail(rideId);
+        setTimeout(() => {
+          if (confirm('🎁 Invite friends to RideShare and earn ₹50! Share your code on WhatsApp?')) {
+            if (window.Growth && window.API) Growth.shareReferral(API.getUser()?.referral_code || '');
+          }
+        }, 1500);
         return;
       }
 
@@ -433,6 +446,28 @@ const Rides = {
             email: user?.email || '',
           },
           theme: { color: '#6366f1' },
+          method: {
+            upi: true,
+            card: true,
+            netbanking: true,
+            wallet: true
+          },
+          config: {
+            display: {
+              blocks: {
+                upi: {
+                  name: "Pay via UPI",
+                  instruments: [
+                    { method: "upi" }
+                  ]
+                }
+              },
+              sequence: ["block.upi", "block.card", "block.netbanking"],
+              preferences: {
+                show_default_blocks: true
+              }
+            }
+          },
 
           // ── STEP 3: Payment success handler ──────────────────────────────
           // Razorpay calls this ONLY after the user's bank confirms payment.
@@ -462,6 +497,13 @@ const Rides = {
               document.getElementById('paymentModal').classList.add('hidden');
               App.showToast('💳 Payment verified — Ride booked! 🎉', 'success');
               _self.loadDetail(rideId);
+              
+              setTimeout(() => {
+                if (confirm('🎁 Invite friends to RideShare and earn ₹50! Share your code on WhatsApp?')) {
+                  if (window.Growth && window.API) Growth.shareReferral(API.getUser()?.referral_code || '');
+                }
+              }, 1500);
+
               resolve();
 
             } catch (verifyErr) {
@@ -492,6 +534,7 @@ const Rides = {
           }
         };
 
+        console.log('[PAYMENT] Razorpay Options:', rzpOptions);
         const rzpInstance = new Razorpay(rzpOptions);
 
         // Handle explicit payment failure event (card declined, etc.)

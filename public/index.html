@@ -31,6 +31,18 @@
           <a href="#/signup" class="btn btn-primary btn-sm" id="navSignup">Sign Up</a>
         </div>
         <div class="nav-user auth-only" id="navUser">
+          <!-- Notification Bell -->
+          <div style="position:relative;margin-right:8px;" class="auth-only">
+            <button onclick="Growth.showNotifPanel()" style="background:none;border:none;cursor:pointer;font-size:1.3rem;color:var(--text-secondary);padding:4px;position:relative;" aria-label="Notifications">
+              🔔
+              <span id="notifBadge" style="display:none;position:absolute;top:-2px;right:-4px;background:var(--error);color:#fff;font-size:0.6rem;font-weight:700;border-radius:10px;padding:1px 5px;min-width:16px;text-align:center;">0</span>
+            </button>
+            <!-- Notification dropdown panel -->
+            <div id="notifPanel" class="hidden" style="position:absolute;right:0;top:calc(100% + 8px);width:320px;max-height:400px;overflow-y:auto;background:var(--card-bg);border:1px solid var(--border-color);border-radius:12px;box-shadow:var(--shadow-lg);z-index:1000;">
+              <div style="padding:12px 16px;border-bottom:1px solid var(--border-color);font-weight:600;font-size:0.9rem;">🔔 Notifications</div>
+              <div id="notifList"><div style="padding:16px;color:var(--text-muted);font-size:0.85rem;">Loading...</div></div>
+            </div>
+          </div>
           <div class="user-menu" id="userMenu">
             <div class="user-avatar" id="userAvatar">
               <span id="userInitial">U</span>
@@ -96,36 +108,159 @@
         </div>
       </div>
 
+      <!-- Live Trust Stats -->
+      <div style="background:rgba(0,0,0,0.3);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.08);padding:14px 0;">
+        <div class="container" style="display:flex;justify-content:space-around;flex-wrap:wrap;gap:12px;text-align:center;">
+          <div><div id="liveTotalRides" style="font-size:1.35rem;font-weight:800;color:var(--primary);">—</div><div style="font-size:0.7rem;color:var(--text-muted);">RIDES POSTED</div></div>
+          <div><div id="liveTotalBookings" style="font-size:1.35rem;font-weight:800;color:var(--success);">—</div><div style="font-size:0.7rem;color:var(--text-muted);">BOOKINGS</div></div>
+          <div><div id="liveTotalUsers" style="font-size:1.35rem;font-weight:800;color:var(--warning);">—</div><div style="font-size:0.7rem;color:var(--text-muted);">MEMBERS</div></div>
+          <div><div id="liveDriverEarnings" style="font-size:1.35rem;font-weight:800;color:#a78bfa;">—</div><div style="font-size:0.7rem;color:var(--text-muted);">PAID TO DRIVERS</div></div>
+        </div>
+      </div>
+
       <div class="features-section">
         <div class="container">
           <h2 class="section-title">How It Works</h2>
           <div class="features-grid">
-            <div class="feature-card">
-              <div class="feature-icon">📝</div>
-              <h3>Create Account</h3>
-              <p>Sign up in seconds and set up your profile with your car details.</p>
+            <div class="feature-card"><div class="feature-icon">📝</div><h3>1. Create Account</h3><p>Sign up in 30 seconds. Use a referral code to get <strong>₹50 off</strong> your first ride.</p></div>
+            <div class="feature-card"><div class="feature-icon">🗺️</div><h3>2. Find or Post</h3><p>Search rides on your route or offer empty seats and earn while you drive.</p></div>
+            <div class="feature-card"><div class="feature-icon">💳</div><h3>3. Pay with UPI</h3><p>Book instantly via GPay, PhonePe, Paytm. 100% secure Razorpay gateway.</p></div>
+            <div class="feature-card"><div class="feature-icon">💰</div><h3>Earn as Driver</h3><p>Drivers earn <strong>₹500–₹2000/day</strong> offering seats on routes they already drive.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- vs Ola/Uber -->
+      <div style="padding:48px 0;background:rgba(0,0,0,0.2);">
+        <div class="container">
+          <h2 class="section-title" style="margin-bottom:8px;">Cheaper Than Any Cab App</h2>
+          <p style="text-align:center;color:var(--text-secondary);margin-bottom:28px;">Real savings on popular routes</p>
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.88rem;max-width:600px;margin:0 auto;">
+              <thead><tr style="border-bottom:2px solid var(--border-color);">
+                <th style="padding:10px;text-align:left;">Route</th>
+                <th style="padding:10px;text-align:center;color:#f87171;">Ola/Uber</th>
+                <th style="padding:10px;text-align:center;color:var(--success);">RideShare</th>
+                <th style="padding:10px;text-align:center;color:var(--warning);">Save</th>
+              </tr></thead>
+              <tbody>
+                <tr style="border-bottom:1px solid var(--border-color);"><td style="padding:10px;">Mumbai → Pune</td><td style="padding:10px;text-align:center;color:#f87171;">₹2,200</td><td style="padding:10px;text-align:center;color:var(--success);font-weight:700;">₹650</td><td style="padding:10px;text-align:center;color:var(--warning);font-weight:700;">₹1,550 🎉</td></tr>
+                <tr style="border-bottom:1px solid var(--border-color);"><td style="padding:10px;">Delhi → Gurgaon</td><td style="padding:10px;text-align:center;color:#f87171;">₹450</td><td style="padding:10px;text-align:center;color:var(--success);font-weight:700;">₹120</td><td style="padding:10px;text-align:center;color:var(--warning);font-weight:700;">₹330 🎉</td></tr>
+                <tr><td style="padding:10px;">Bangalore → Mysore</td><td style="padding:10px;text-align:center;color:#f87171;">₹1,800</td><td style="padding:10px;text-align:center;color:var(--success);font-weight:700;">₹500</td><td style="padding:10px;text-align:center;color:var(--warning);font-weight:700;">₹1,300 🎉</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="text-align:center;margin-top:24px;"><a href="#/find" class="btn btn-primary btn-lg">🔍 Find Cheap Rides Now</a></div>
+        </div>
+      </div>
+
+      <!-- Driver CTA & Earnings Calculator -->
+      <div style="padding:48px 0;">
+        <div class="container">
+          <div class="glass-card" style="padding:28px;max-width:600px;margin:0 auto;position:relative;overflow:hidden;">
+            <div style="position:absolute;top:-50px;right:-50px;width:150px;height:150px;background:var(--primary);filter:blur(80px);opacity:0.3;"></div>
+            
+            <div style="text-align:center;margin-bottom:24px;">
+              <div style="font-size:2.4rem;margin-bottom:10px;">💰</div>
+              <h2 style="margin-bottom:8px;">Turn Your Commute Into Income</h2>
+              <p style="color:var(--text-secondary);">Find out how much you can earn sharing your empty seats.</p>
             </div>
-            <div class="feature-card">
-              <div class="feature-icon">🗺️</div>
-              <h3>Post or Find</h3>
-              <p>Offer a ride as a driver or search for rides matching your route.</p>
+            
+            <div style="background:rgba(0,0,0,0.3);border-radius:12px;padding:20px;margin-bottom:24px;border:1px solid var(--border-color);">
+              <div style="margin-bottom:20px;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                  <span style="font-size:0.9rem;font-weight:600;">Daily Commute Distance</span>
+                  <span style="color:var(--primary);font-weight:700;" id="calcDistVal">30 km</span>
+                </div>
+                <input type="range" id="calcDist" min="10" max="150" value="30" style="width:100%;accent-color:var(--primary);">
+              </div>
+              
+              <div style="margin-bottom:20px;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                  <span style="font-size:0.9rem;font-weight:600;">Empty Seats</span>
+                  <span style="color:var(--primary);font-weight:700;" id="calcSeatsVal">2 seats</span>
+                </div>
+                <input type="range" id="calcSeats" min="1" max="4" value="2" style="width:100%;accent-color:var(--primary);">
+              </div>
+              
+              <div style="border-top:1px dashed var(--border-color);padding-top:16px;display:flex;justify-content:space-between;align-items:center;">
+                <div>
+                  <div style="font-size:0.8rem;color:var(--text-muted);">Estimated Monthly Earnings</div>
+                  <div style="font-size:2rem;font-weight:800;color:var(--success);" id="calcTotal">₹12,600</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:0.8rem;color:var(--text-muted);">Based on ₹3/km/seat</div>
+                  <div style="font-size:0.8rem;color:var(--text-muted);">assuming 22 work days</div>
+                </div>
+              </div>
             </div>
-            <div class="feature-card">
-              <div class="feature-icon">💳</div>
-              <h3>Pay with UPI</h3>
-              <p>Pay securely using GPay, PhonePe, Paytm or any UPI app.</p>
+
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+              <a href="#/signup" class="btn btn-primary btn-lg">🚗 Start Earning Now</a>
+              <button class="btn btn-ghost" onclick="Growth.copyDriverPitch()">📋 Copy Invite Text</button>
             </div>
-            <div class="feature-card">
-              <div class="feature-icon">⭐</div>
-              <h3>Rate & Review</h3>
-              <p>Share your experience and help build a trusted community.</p>
-            </div>
+            
+            <script>
+              const dist = document.getElementById('calcDist');
+              const seats = document.getElementById('calcSeats');
+              const updateCalc = () => {
+                document.getElementById('calcDistVal').textContent = dist.value + ' km';
+                document.getElementById('calcSeatsVal').textContent = seats.value + (seats.value == 1 ? ' seat' : ' seats');
+                const monthly = Math.round(dist.value * seats.value * 3 * 22);
+                document.getElementById('calcTotal').textContent = '₹' + monthly.toLocaleString('en-IN');
+              };
+              dist?.addEventListener('input', updateCalc);
+              seats?.addEventListener('input', updateCalc);
+            </script>
+          </div>
+        </div>
+      </div>
+
+      <!-- Testimonials -->
+      <div style="padding:48px 0;background:rgba(0,0,0,0.2);">
+        <div class="container">
+          <h2 class="section-title" style="margin-bottom:28px;">What Our Community Says</h2>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px;">
+            <div class="glass-card" style="padding:18px;"><div style="color:#facc15;margin-bottom:6px;">★★★★★</div><p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:10px;">"Saved ₹1,200 on my Pune trip. The UPI payment was instant. Already told 10 friends!"</p><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;">R</div><div><div style="font-weight:600;font-size:0.8rem;">Rahul M.</div><div style="font-size:0.7rem;color:var(--text-muted);">Mumbai passenger</div></div></div></div>
+            <div class="glass-card" style="padding:18px;"><div style="color:#facc15;margin-bottom:6px;">★★★★★</div><p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:10px;">"Made ₹8,400 last month offering 2 seats on my daily commute. Best side hustle!"</p><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;">P</div><div><div style="font-weight:600;font-size:0.8rem;">Priya S.</div><div style="font-size:0.7rem;color:var(--text-muted);">Delhi driver</div></div></div></div>
+            <div class="glass-card" style="padding:18px;"><div style="color:#facc15;margin-bottom:6px;">★★★★☆</div><p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:10px;">"No Ola surge pricing nonsense. Booked in 2 mins, paid via GPay. Absolutely loved it."</p><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--warning);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;">A</div><div><div style="font-weight:600;font-size:0.8rem;">Aditya K.</div><div style="font-size:0.7rem;color:var(--text-muted);">Bangalore</div></div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom CTA -->
+      <div style="padding:56px 0;text-align:center;">
+        <div class="container">
+          <h2 style="font-size:1.85rem;font-weight:800;margin-bottom:10px;">Ready to Travel Smarter? 🚀</h2>
+          <p style="color:var(--text-secondary);margin-bottom:24px;max-width:440px;margin-left:auto;margin-right:auto;">Join thousands of smart commuters. Sign up free in 30 seconds.</p>
+          <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+            <a href="#/find" class="btn btn-primary btn-lg">🔍 Find a Ride</a>
+            <a href="#/signup" class="btn btn-outline btn-lg">⚡ Earn Money Driving</a>
           </div>
         </div>
       </div>
     </section>
 
+    <!-- ONBOARDING MODAL -->
+    <div id="onboardingModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;">
+      <div class="glass-card" style="max-width:440px;width:100%;padding:28px;text-align:center;">
+        <div style="font-size:2.8rem;margin-bottom:10px;">🎉</div>
+        <h2 style="margin-bottom:6px;">Welcome to RideShare!</h2>
+        <p style="color:var(--text-secondary);margin-bottom:20px;">Here's how to get the most out of it:</p>
+        <div style="display:flex;flex-direction:column;gap:8px;text-align:left;margin-bottom:20px;">
+          <div class="glass-card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;"><span style="font-size:1.2rem;">🔍</span><span><strong>Find a ride</strong> — search by route, book in seconds</span></div>
+          <div class="glass-card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;"><span style="font-size:1.2rem;">🚗</span><span><strong>Offer a ride</strong> — post seats, earn ₹500–2000/day</span></div>
+          <div class="glass-card" style="padding:10px 14px;display:flex;gap:10px;align-items:center;"><span style="font-size:1.2rem;">🎁</span><span>Your referral code: <strong id="onboardingRefCode" style="color:var(--primary);letter-spacing:.08em;">—</strong> — share it, earn ₹50!</span></div>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+          <button id="onboardingShareBtn" class="btn btn-primary">📲 Share on WhatsApp</button>
+          <button id="onboardingCloseBtn" class="btn btn-ghost">Get Started →</button>
+        </div>
+      </div>
+    </div>
+
     <!-- LOGIN PAGE -->
+
     <section class="page" id="page-login">
       <div class="auth-container">
         <div class="auth-card glass-card">
@@ -179,6 +314,10 @@
               <label for="signupPassword">Password</label>
               <input type="password" id="signupPassword" placeholder="Min. 6 characters" required minlength="6">
             </div>
+            <div class="form-group">
+              <label for="signupRef" style="font-size:0.85rem;">Referral Code <span style="color:var(--text-muted)">(optional — get ₹50 bonus!)</span></label>
+              <input type="text" id="signupRef" placeholder="e.g. JOHN4A2B" style="text-transform:uppercase;">
+            </div>
             <button type="submit" class="btn btn-primary btn-full" id="signupSubmit">
               <span class="btn-text">Create Account</span>
               <span class="btn-loader hidden"></span>
@@ -199,32 +338,17 @@
           <p>Search available rides and book your seat</p>
         </div>
 
-        <!-- AI Chat Assistant -->
-        <div class="ai-chat-panel glass-card" id="aiChatPanel">
-          <div class="ai-chat-header">
-            <span class="ai-badge">🤖 AI</span>
-            <span class="ai-title">Smart Search — just describe your ride</span>
-          </div>
-          <div class="ai-messages" id="aiMessages">
-            <div class="ai-msg ai-msg-bot">
-              <span class="ai-msg-avatar">🤖</span>
-              <div class="ai-msg-bubble">
-                Hi! Tell me where you want to go — e.g. <em>"Find cheap ride from Noida to Delhi tomorrow"</em>
-              </div>
-            </div>
-          </div>
-          <div class="ai-chat-input-row">
-            <input type="text" id="aiChatInput" class="ai-chat-input" placeholder="e.g. Cheap ride from Noida to Delhi tomorrow...">
-            <button class="btn btn-primary btn-sm" id="aiChatSend">Send</button>
-          </div>
+        <!-- Simple Smart Search Bar -->
+        <div class="search-bar-wrapper" style="margin-bottom: 20px;">
+          <input type="text" id="smartSearchInput" class="ai-chat-input" placeholder="Search rides (e.g. Noida to Delhi tomorrow)" style="width: 100%; padding: 16px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface);">
         </div>
 
-        <!-- Sort pills -->
+        <!-- Quick suggestion buttons -->
         <div class="sort-pills" id="sortPills">
           <button class="sort-pill active" data-sort="balanced">⚡ Best Match</button>
-          <button class="sort-pill" data-sort="cheap">💰 Cheapest</button>
-          <button class="sort-pill" data-sort="fast">🕐 Earliest</button>
-          <button class="sort-pill" data-sort="safe">⭐ Top Rated</button>
+          <button class="sort-pill" data-sort="cheap">💰 Cheap rides</button>
+          <button class="sort-pill" data-sort="fast">🕐 Earliest rides</button>
+          <button class="sort-pill" data-sort="safe">⭐ Top rated</button>
         </div>
 
         <div class="search-panel glass-card">
@@ -263,19 +387,12 @@
           </form>
         </div>
 
-        <!-- AI Suggestions Section (shown when logged in) -->
-        <div id="aiSuggestSection" class="hidden">
-          <div class="section-subtitle">
-            <span class="ai-badge">🤖 AI</span> Recommended for you
-          </div>
-          <div class="rides-grid" id="aiSuggestGrid"></div>
-        </div>
 
         <div class="rides-grid" id="ridesGrid">
           <div class="empty-state" id="ridesEmpty">
             <div class="empty-icon">🔍</div>
             <h3>Search for rides</h3>
-            <p>Enter your route and date to find available rides</p>
+            <p>Try searching popular routes like Noida → Delhi</p>
           </div>
         </div>
       </div>
@@ -395,6 +512,7 @@
           <button class="tab-btn active" data-tab="driver">🚗 My Rides (Driver)</button>
           <button class="tab-btn" data-tab="passenger">🎫 My Bookings</button>
           <button class="tab-btn" data-tab="payments">💳 Payments</button>
+          <button class="tab-btn" data-tab="wallet">💰 Wallet</button>
         </div>
         <div class="tab-content" id="driverTab">
           <div id="driverRides" class="rides-list"></div>
@@ -405,6 +523,79 @@
         <div class="tab-content hidden" id="paymentsTab">
           <div id="paymentsList" class="rides-list"></div>
         </div>
+        <div class="tab-content hidden" id="walletTab">
+
+          <!-- ── Earnings Summary ── -->
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
+            <div class="glass-card" style="padding:16px;">
+              <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;">Total Earned</div>
+              <div id="earnTotalEarned" style="font-size:1.4rem;font-weight:800;color:var(--success);">₹0.00</div>
+            </div>
+            <div class="glass-card" style="padding:16px;">
+              <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;">Wallet Balance</div>
+              <div id="earnWalletBal" style="font-size:1.4rem;font-weight:800;color:var(--primary);">₹0.00</div>
+            </div>
+            <div class="glass-card" style="padding:16px;">
+              <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;">Withdrawn</div>
+              <div id="earnWithdrawn" style="font-size:1.4rem;font-weight:800;">₹0.00</div>
+            </div>
+            <div class="glass-card" style="padding:16px;">
+              <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;">Pending Payout</div>
+              <div id="earnPending" style="font-size:1.4rem;font-weight:800;color:var(--warning);">₹0.00</div>
+            </div>
+            <div class="glass-card" style="padding:16px;">
+              <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;">Rides Driven</div>
+              <div id="earnRidesDriven" style="font-size:1.4rem;font-weight:800;">0</div>
+            </div>
+            <div class="glass-card" style="padding:16px;">
+              <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;">Paid Bookings</div>
+              <div id="earnPaidBookings" style="font-size:1.4rem;font-weight:800;">0</div>
+            </div>
+          </div>
+
+          <!-- ── Weekly Earnings Chart ── -->
+          <div class="glass-card" style="padding:20px;margin-bottom:20px;">
+            <div style="font-weight:600;margin-bottom:12px;">📈 Weekly Earnings (last 8 weeks)</div>
+            <div id="earningsChart" style="min-height:100px;"></div>
+          </div>
+
+          <!-- ── Withdraw Section ── -->
+          <div class="glass-card" style="padding:20px;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+              <div>
+                <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:4px;">Available to Withdraw</div>
+                <div id="walletBalanceDisplay" style="font-size:1.8rem;font-weight:800;color:var(--success);">₹0.00</div>
+              </div>
+              <button class="btn btn-primary" id="openWithdrawBtn">💸 Withdraw</button>
+            </div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:8px;">💡 Min ₹50 • One request at a time • 24h cooldown between requests</div>
+          </div>
+
+          <!-- ── Withdraw Form (hidden) ── -->
+          <div class="glass-card hidden" id="withdrawForm" style="padding:20px;margin-bottom:16px;">
+            <h4 style="margin-bottom:14px;">Request Withdrawal</h4>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label for="withdrawAmount">Amount (₹)</label>
+              <input type="number" id="withdrawAmount" min="50" step="1" placeholder="Min ₹50">
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label for="withdrawUpi">UPI ID <span style="color:var(--text-muted);font-size:0.78rem;">(optional)</span></label>
+              <input type="text" id="withdrawUpi" placeholder="yourname@upi">
+            </div>
+            <div style="display:flex;gap:10px;">
+              <button class="btn btn-primary" id="submitWithdrawBtn">
+                <span class="btn-text">Submit Request</span>
+                <span class="btn-loader hidden"></span>
+              </button>
+              <button class="btn btn-ghost" id="cancelWithdrawBtn">Cancel</button>
+            </div>
+          </div>
+
+          <!-- ── Withdrawal History ── -->
+          <div style="font-weight:600;margin-bottom:10px;">Withdrawal History</div>
+          <div id="withdrawalsList" class="rides-list"></div>
+        </div>
+
       </div>
     </section>
 
@@ -617,9 +808,11 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/maps.js"></script>
+  <script src="/js/growth.js"></script>
   <script src="/js/auth.js"></script>
   <script src="/js/rides.js"></script>
   <script src="/js/dashboard.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>
+

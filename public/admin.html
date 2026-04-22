@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RideShare Admin Panel</title>
+  <!-- ⚠️  Admin guard: redirect instantly if not logged in as admin -->
+  <script>
+    (async () => {
+      const t = localStorage.getItem('admin_token');
+      if (!t) return; // handled by login overlay
+      try {
+        const r = await fetch('/api/admin/users', {
+          headers: { Authorization: 'Bearer ' + t }
+        });
+        if (!r.ok) {
+          localStorage.removeItem('admin_token');
+          // login overlay will show automatically
+        }
+      } catch { localStorage.removeItem('admin_token'); }
+    })();
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --border:    rgba(255,255,255,0.08);
+      --primary:   #6366f1;
+      --success:   #22c55e;
+      --warning:   #f59e0b;
+      --error:     #ef4444;
+      --text:      #f1f5f9;
+      --muted:     #64748b;
+      --radius:    12px;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Login overlay ── */
+    #loginOverlay {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 999;
+    }
+    #loginOverlay.hidden { display: none; }
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px;
+      width: 100%; max-width: 380px;
+    }
+    .login-card h2 { margin-bottom: 8px; font-size: 1.4rem; }
+    .login-card p  { color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
+
+    /* ── Layout ── */
+    .app { display: flex; min-height: 100vh; }
+
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 16px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .sidebar-logo {
+      font-size: 1.1rem; font-weight: 700;
+      color: var(--primary); padding: 0 8px 20px;
+      border-bottom: 1px solid var(--border); margin-bottom: 12px;
+    }
+    .nav-item {
+      padding: 10px 12px; border-radius: 8px;
+      cursor: pointer; font-size: 0.9rem; font-weight: 500;
+      color: var(--muted); transition: all .15s;
+      border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-item:hover, .nav-item.active {
+      background: rgba(99,102,241,.15); color: var(--primary);
+    }
+    .sidebar-bottom { margin-top: auto; }
+    #adminNameTag { font-size: 0.78rem; color: var(--muted); padding: 8px 12px; }
+
+    .main { flex: 1; padding: 32px; overflow-y: auto; }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; }
+    .sub { color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
+
+    /* ── Stat cards ── */
+    .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+    }
+    .stat-card .val { font-size: 1.8rem; font-weight: 800; }
+    .stat-card .lbl { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── Filter pills ── */
+    .filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .pill {
+      padding: 6px 16px; border-radius: 20px; font-size: 0.82rem; font-weight: 500;
+      border: 1px solid var(--border); background: none; color: var(--muted);
+      cursor: pointer; transition: all .15s;
+    }
+    .pill.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+    thead th {
+      background: rgba(255,255,255,.04);
+      padding: 12px 16px; text-align: left;
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: .05em;
+      color: var(--muted); font-weight: 600;
+    }
+    tbody tr { border-top: 1px solid var(--border); transition: background .12s; }
+    tbody tr:hover { background: rgba(255,255,255,.02); }
+    tbody td { padding: 12px 16px; vertical-align: middle; }
+
+    .badge {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+    }
+    .badge-pending  { background: rgba(245,158,11,.15); color: var(--warning); }
+    .badge-paid     { background: rgba(34,197,94,.15);  color: var(--success); }
+    .badge-rejected { background: rgba(239,68,68,.15);  color: var(--error);   }
+    .badge-admin    { background: rgba(99,102,241,.15); color: var(--primary); }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 7px 16px; border-radius: 8px; font-size: 0.82rem;
+      font-weight: 600; cursor: pointer; border: none; transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary  { background: var(--primary); color: #fff; }
+    .btn-success  { background: var(--success);  color: #fff; }
+    .btn-danger   { background: var(--error);    color: #fff; }
+    .btn-ghost    { background: rgba(255,255,255,.07); color: var(--text); }
+    .btn-full     { width: 100%; }
+    .btn-sm       { padding: 5px 12px; font-size: 0.78rem; }
+
+    /* ── Form inputs ── */
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 6px; }
+    .form-group input {
+      width: 100%; padding: 10px 14px; border-radius: 8px;
+      border: 1px solid var(--border); background: rgba(255,255,255,.05);
+      color: var(--text); font-size: 0.9rem; outline: none;
+      transition: border-color .15s;
+    }
+    .form-group input:focus { border-color: var(--primary); }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 20px;
+      font-size: 0.88rem; font-weight: 500;
+      opacity: 0; transform: translateY(8px);
+      transition: all .25s; pointer-events: none; z-index: 9999;
+      max-width: 340px;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.success { border-color: var(--success); color: var(--success); }
+    #toast.error   { border-color: var(--error);   color: var(--error);   }
+
+    .empty { text-align: center; padding: 48px 16px; color: var(--muted); font-size: 0.9rem; }
+    .action-btns { display: flex; gap: 6px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Login overlay ── -->
+<div id="loginOverlay">
+  <div class="login-card">
+    <h2>🔐 Admin Login</h2>
+    <p>Sign in with your admin account to continue.</p>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="adminEmail" placeholder="admin@rideshare.com">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="adminPassword" placeholder="••••••••">
+    </div>
+    <button class="btn btn-primary btn-full" id="loginBtn">Sign In</button>
+    <p id="loginError" style="color:var(--error);font-size:.82rem;margin-top:12px;text-align:center;"></p>
+  </div>
+</div>
+
+<!-- ── App shell ── -->
+<div class="app" id="appShell" style="display:none;">
+  <nav class="sidebar">
+    <div class="sidebar-logo">🚗 RideShare Admin</div>
+    <button class="nav-item active" data-page="withdrawals">💸 Withdrawals</button>
+    <button class="nav-item" data-page="users">👥 Users</button>
+    <button class="nav-item" data-page="growth">📈 Growth</button>
+    <div class="sidebar-bottom">
+      <div id="adminNameTag"></div>
+      <button class="btn btn-ghost btn-full btn-sm" id="logoutBtn" style="margin-top:8px;">Logout</button>
+    </div>
+  </nav>
+
+  <main class="main">
+
+    <!-- ══ Withdrawals page ══ -->
+    <div class="page active" id="page-withdrawals">
+      <h1>💸 Withdrawal Requests</h1>
+      <p class="sub">Review and process driver payout requests.</p>
+
+      <div class="stats" id="wdStats"></div>
+
+      <div class="filters">
+        <button class="pill active" data-filter="all">All</button>
+        <button class="pill" data-filter="pending">Pending</button>
+        <button class="pill" data-filter="paid">Paid</button>
+        <button class="pill" data-filter="rejected">Rejected</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Driver</th>
+              <th>Amount</th>
+              <th>UPI ID</th>
+              <th>Status</th>
+              <th>Requested</th>
+              <th>Processed</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="wdTableBody">
+            <tr><td colspan="8" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ Users page ══ -->
+    <div class="page" id="page-users">
+      <h1>👥 Users</h1>
+      <p class="sub">All registered users and their wallet balances.</p>
+
+      <div class="stats" id="userStats"></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Wallet</th>
+              <th>Rating</th>
+              <th>Role</th>
+              <th>Joined</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <tr><td colspan="9" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ Growth page ══ -->
+    <div class="page" id="page-growth">
+      <h1>📈 Growth & Conversion</h1>
+      <p class="sub">Manage system levers and view acquisition metrics.</p>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+        <!-- Controls -->
+        <div class="glass-card" style="padding:24px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface);">
+          <h3 style="margin-bottom:16px;">System Controls</h3>
+          
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--border);">
+            <div>
+              <div style="font-weight:600;">Surge Pricing</div>
+              <div style="font-size:0.8rem;color:var(--muted);">Increase prices by 20% during peak hours (8-11am, 6-9pm)</div>
+            </div>
+            <button class="btn btn-outline" id="toggleSurgeBtn" style="border:1px solid var(--border); background:none; color:var(--text);">Disabled</button>
+          </div>
+          
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-weight:600;">Referral Bonus (₹)</div>
+              <div style="font-size:0.8rem;color:var(--muted);">Reward given to users for inviting friends</div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <input type="number" id="referralBonusInput" style="width:70px; padding:6px; border-radius:6px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:white;" value="50">
+              <button class="btn btn-primary btn-sm" id="saveReferralBtn">Save</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Revenue / Funnel -->
+        <div class="glass-card" style="padding:24px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface);">
+          <h3 style="margin-bottom:16px;">Funnel Conversion (Today)</h3>
+          <div id="funnelMetrics" style="font-size:0.9rem;">
+            <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+              <span>Page Views</span> <strong id="metricViews">...</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+              <span>Signups</span> <strong id="metricSignups" style="color:var(--primary);">...</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+              <span>Bookings</span> <strong id="metricBookings" style="color:var(--success);">...</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:10px 0;">
+              <span>Conv. Rate</span> <strong id="metricConv" style="color:var(--warning);">...</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:20px;" class="glass-card" style="padding:24px; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface);">
+        <h3 style="margin-bottom:16px;">🏆 Top Drivers (Leaderboard)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Driver</th>
+                <th>Completed Rides</th>
+                <th>Total Earnings</th>
+                <th>Wallet Balance</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboardBody">
+              <tr><td colspan="5" class="empty">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let token = localStorage.getItem('admin_token') || '';
+let wdFilter = 'all';
+let allWithdrawals = [];
+let allUsers = [];
+
+// ── Utilities ──────────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+function fmt(dateStr) {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+async function api(method, path, body) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch('/api' + path, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+// ── Auth ───────────────────────────────────────────────────────────────────────
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const email    = document.getElementById('adminEmail').value.trim();
+  const password = document.getElementById('adminPassword').value;
+  const errEl    = document.getElementById('loginError');
+  errEl.textContent = '';
+
+  if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+
+  try {
+    const data = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    }).then(r => r.json());
+
+    if (!data.token) { errEl.textContent = data.error || 'Login failed.'; return; }
+
+    // Verify the account is actually admin
+    token = data.token;
+    const me = await api('GET', '/admin/users').catch(() => null);
+    if (!me) {
+      token = '';
+      errEl.textContent = 'Access denied — this account is not an admin.';
+      return;
+    }
+
+    localStorage.setItem('admin_token', token);
+    document.getElementById('adminNameTag').textContent = '👤 ' + (data.user?.name || 'Admin');
+    showApp();
+  } catch (err) {
+    errEl.textContent = err.message || 'Login failed.';
+  }
+});
+
+document.getElementById('adminPassword').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('loginBtn').click();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  token = '';
+  localStorage.removeItem('admin_token');
+  document.getElementById('loginOverlay').classList.remove('hidden');
+  document.getElementById('appShell').style.display = 'none';
+});
+
+// ── Navigation ─────────────────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('page-' + btn.dataset.page).classList.add('active');
+    if (btn.dataset.page === 'withdrawals') loadWithdrawals();
+    if (btn.dataset.page === 'users')       loadUsers();
+    if (btn.dataset.page === 'growth')      loadGrowth();
+  });
+});
+
+// ── Withdrawal filter pills ────────────────────────────────────────────────────
+document.querySelectorAll('.pill[data-filter]').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    wdFilter = pill.dataset.filter;
+    renderWithdrawals();
+  });
+});
+
+// ── Show app after login ───────────────────────────────────────────────────────
+function showApp() {
+  document.getElementById('loginOverlay').classList.add('hidden');
+  document.getElementById('appShell').style.display = 'flex';
+  loadWithdrawals();
+}
+
+// ── Withdrawals ────────────────────────────────────────────────────────────────
+async function loadWithdrawals() {
+  try {
+    const data = await api('GET', '/admin/withdrawals');
+    allWithdrawals = data.withdrawals || [];
+    renderWithdrawals();
+    renderWdStats();
+  } catch (err) {
+    document.getElementById('wdTableBody').innerHTML =
+      `<tr><td colspan="8" class="empty">❌ ${esc(err.message)}</td></tr>`;
+  }
+}
+
+function renderWdStats() {
+  const pending  = allWithdrawals.filter(w => w.status === 'pending');
+  const paid     = allWithdrawals.filter(w => w.status === 'paid');
+  const rejected = allWithdrawals.filter(w => w.status === 'rejected');
+  const totalPending = pending.reduce((s, w) => s + w.amount, 0);
+
+  document.getElementById('wdStats').innerHTML = `
+    <div class="stat-card"><div class="val">${allWithdrawals.length}</div><div class="lbl">Total Requests</div></div>
+    <div class="stat-card"><div class="val" style="color:var(--warning)">${pending.length}</div><div class="lbl">Pending</div></div>
+    <div class="stat-card"><div class="val" style="color:var(--success)">₹${totalPending.toFixed(0)}</div><div class="lbl">Pending Amount</div></div>
+    <div class="stat-card"><div class="val" style="color:var(--success)">${paid.length}</div><div class="lbl">Paid</div></div>
+    <div class="stat-card"><div class="val" style="color:var(--error)">${rejected.length}</div><div class="lbl">Rejected</div></div>
+  `;
+}
+
+function renderWithdrawals() {
+  const tbody = document.getElementById('wdTableBody');
+  const rows  = wdFilter === 'all' ? allWithdrawals : allWithdrawals.filter(w => w.status === wdFilter);
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">No ${wdFilter === 'all' ? '' : wdFilter} withdrawals found.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(w => `
+    <tr>
+      <td><code style="font-size:.75rem;color:var(--muted)">#${w.id}</code></td>
+      <td>
+        <div style="font-weight:600">${esc(w.user_name)}</div>
+        <div style="font-size:.75rem;color:var(--muted)">${esc(w.user_email)}</div>
+      </td>
+      <td><strong style="font-size:1rem">₹${w.amount.toFixed(2)}</strong></td>
+      <td style="font-size:.82rem;color:var(--muted)">${esc(w.upi_id) || '—'}</td>
+      <td><span class="badge badge-${w.status}">${w.status}</span></td>
+      <td style="font-size:.8rem">${fmt(w.created_at)}</td>
+      <td style="font-size:.8rem">${fmt(w.processed_at)}</td>
+      <td>
+        ${w.status === 'pending' ? `
+          <div class="action-btns">
+            <button class="btn btn-success btn-sm" onclick="approveWd(${w.id}, '${esc(w.user_name)}', ${w.amount})">✓ Approve</button>
+            <button class="btn btn-danger btn-sm"  onclick="rejectWd(${w.id},  '${esc(w.user_name)}', ${w.amount})">✗ Reject</button>
+          </div>` : '<span style="color:var(--muted);font-size:.8rem">Processed</span>'}
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function approveWd(id, name, amount) {
+  const method = prompt(`Payment method for ₹${amount.toFixed(2)} to ${name}:\nEnter: UPI, BANK, IMPS, NEFT, or RTGS`);
+  if (!method) return;
+  const ref = prompt('Enter payment reference / UTR number:');
+  if (!ref) { toast('❌ Payment reference is required.', 'error'); return; }
+  if (!confirm(`Confirm approval:\n• Amount: ₹${amount.toFixed(2)}\n• Driver: ${name}\n• Method: ${method.toUpperCase()}\n• Ref: ${ref}`)) return;
+  try {
+    const res = await api('POST', `/admin/withdrawals/${id}/approve`, {
+      payment_method: method.toUpperCase(),
+      payment_ref:    ref,
+    });
+    toast(`✅ ${res.message}`, 'success');
+    await loadWithdrawals();
+  } catch (err) {
+    toast('❌ ' + err.message, 'error');
+  }
+}
+
+async function rejectWd(id, name, amount) {
+  if (!confirm(`Reject ₹${amount.toFixed(2)} withdrawal for ${name}?\n\nThe amount will be refunded to their wallet.`)) return;
+  const note = prompt('Rejection reason (optional):') || '';
+  try {
+    const res = await api('POST', `/admin/withdrawals/${id}/reject`, { note });
+    toast(`✅ ${res.message}`, 'success');
+    await loadWithdrawals();
+  } catch (err) {
+    toast('❌ ' + err.message, 'error');
+  }
+}
+
+// ── Users ──────────────────────────────────────────────────────────────────────
+async function loadUsers() {
+  try {
+    const data = await api('GET', '/admin/users');
+    allUsers = data.users || [];
+    renderUserStats();
+    renderUsers();
+  } catch (err) {
+    document.getElementById('usersTableBody').innerHTML =
+      `<tr><td colspan="9" class="empty">❌ ${esc(err.message)}</td></tr>`;
+  }
+}
+
+function renderUserStats() {
+  const admins      = allUsers.filter(u => u.is_admin).length;
+  const totalWallet = allUsers.reduce((s, u) => s + (u.wallet_balance || 0), 0);
+  const rated       = allUsers.filter(u => u.avg_rating > 0);
+  const avgRating   = rated.length ? (rated.reduce((s, u) => s + u.avg_rating, 0) / rated.length).toFixed(1) : '—';
+
+  document.getElementById('userStats').innerHTML = `
+    <div class="stat-card"><div class="val">${allUsers.length}</div><div class="lbl">Total Users</div></div>
+    <div class="stat-card"><div class="val" style="color:var(--primary)">${admins}</div><div class="lbl">Admins</div></div>
+    <div class="stat-card"><div class="val" style="color:var(--success)">₹${totalWallet.toFixed(0)}</div><div class="lbl">Total in Wallets</div></div>
+    <div class="stat-card"><div class="val">⭐ ${avgRating}</div><div class="lbl">Avg Driver Rating</div></div>
+  `;
+}
+
+function renderUsers() {
+  const tbody = document.getElementById('usersTableBody');
+  if (!allUsers.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No users found.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = allUsers.map(u => `
+    <tr>
+      <td><code style="font-size:.75rem;color:var(--muted)">#${u.id}</code></td>
+      <td style="font-weight:600">${esc(u.name)}</td>
+      <td style="font-size:.82rem;color:var(--muted)">${esc(u.email)}</td>
+      <td style="font-size:.82rem">${esc(u.phone) || '—'}</td>
+      <td><strong style="color:var(--success)">₹${(u.wallet_balance || 0).toFixed(2)}</strong></td>
+      <td>${u.avg_rating > 0 ? `⭐ ${u.avg_rating} (${u.total_ratings})` : '—'}</td>
+      <td>${u.is_admin ? '<span class="badge badge-admin">Admin</span>' : '<span style="color:var(--muted);font-size:.8rem">User</span>'}</td>
+      <td style="font-size:.8rem;color:var(--muted)">${new Date(u.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}</td>
+      <td>
+        ${!u.is_admin ? `<button class="btn btn-ghost btn-sm" onclick="makeAdmin(${u.id}, '${esc(u.name)}')">Make Admin</button>` : '—'}
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function makeAdmin(id, name) {
+  if (!confirm(`Grant admin access to ${name}? They will have full admin panel access.`)) return;
+  try {
+    const res = await api('POST', `/admin/users/${id}/make-admin`);
+    toast(`✅ ${res.message}`, 'success');
+    await loadUsers();
+  } catch (err) {
+    toast('❌ ' + err.message, 'error');
+  }
+}
+
+// ── Growth & Config ────────────────────────────────────────────────────────────
+let isSurgeEnabled = false;
+
+async function loadGrowth() {
+  try {
+    const [cfg, stats, lb] = await Promise.all([
+      api('GET', '/admin/config'),
+      api('GET', '/analytics/summary').catch(() => null),
+      api('GET', '/analytics/leaderboard').catch(() => null)
+    ]);
+    
+    isSurgeEnabled = cfg.config.surge_enabled;
+    const sBtn = document.getElementById('toggleSurgeBtn');
+    sBtn.textContent = isSurgeEnabled ? 'Enabled' : 'Disabled';
+    sBtn.style.color = isSurgeEnabled ? 'var(--success)' : 'var(--text)';
+    sBtn.style.borderColor = isSurgeEnabled ? 'var(--success)' : 'var(--border)';
+    
+    document.getElementById('referralBonusInput').value = cfg.config.referral_bonus || 50;
+
+    if (stats && stats.daily) {
+      document.getElementById('metricViews').textContent = stats.daily.page_views || 0;
+      document.getElementById('metricSignups').textContent = stats.daily.signups || 0;
+      document.getElementById('metricBookings').textContent = stats.daily.bookings || 0;
+      const conv = stats.daily.page_views ? ((stats.daily.bookings / stats.daily.page_views)*100).toFixed(1) : 0;
+      document.getElementById('metricConv').textContent = `${conv}%`;
+    }
+
+    if (lb && lb.drivers) {
+      if (lb.drivers.length === 0) {
+        document.getElementById('leaderboardBody').innerHTML = '<tr><td colspan="5" class="empty">No drivers with earnings found.</td></tr>';
+      } else {
+        document.getElementById('leaderboardBody').innerHTML = lb.drivers.map((d, i) => `
+          <tr>
+            <td><strong style="font-size:1.1rem;color:${i===0?'#fbbf24':i===1?'#9ca3af':i===2?'#b45309':'var(--muted)'}">#${i + 1}</strong></td>
+            <td><div style="font-weight:600">${esc(d.name)}</div><div style="font-size:0.75rem;color:var(--muted)">${esc(d.email)}</div></td>
+            <td>${d.completed_rides}</td>
+            <td style="color:var(--success);font-weight:600;">₹${d.total_earnings.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+            <td>₹${d.wallet_balance.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</td>
+          </tr>
+        `).join('');
+      }
+    }
+  } catch (err) {
+    toast('Failed to load config', 'error');
+  }
+}
+
+document.getElementById('toggleSurgeBtn').addEventListener('click', async () => {
+  try {
+    const nextState = !isSurgeEnabled;
+    await api('POST', '/admin/config', { key: 'surge_enabled', value: nextState });
+    toast(`Surge pricing ${nextState ? 'enabled' : 'disabled'}`, 'success');
+    loadGrowth();
+  } catch(e) { toast(e.message, 'error'); }
+});
+
+document.getElementById('saveReferralBtn').addEventListener('click', async () => {
+  try {
+    const val = document.getElementById('referralBonusInput').value;
+    await api('POST', '/admin/config', { key: 'referral_bonus', value: val });
+    toast(`Referral bonus updated to ₹${val}`, 'success');
+    loadGrowth();
+  } catch(e) { toast(e.message, 'error'); }
+});
+
+
+// ── Auto-login if token exists ─────────────────────────────────────────────────
+(async () => {
+  if (!token) return;
+  try {
+    await api('GET', '/admin/users'); // verify token still valid & is admin
+    document.getElementById('loginOverlay').classList.add('hidden');
+    showApp();
+  } catch {
+    token = '';
+    localStorage.removeItem('admin_token');
+  }
+})();
+</script>
+</body>
+</html>

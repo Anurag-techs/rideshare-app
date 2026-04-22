@@ -9,6 +9,12 @@ const App = {
     this.initRatingModal();
     this.updateNav();
     this.animateStats();
+    // Growth: load notification bell if logged in
+    if (API.isLoggedIn()) Growth.loadNotifBell();
+    // Growth: load real platform stats on landing
+    Growth.loadPlatformStats();
+    // Growth: start live activity ticker
+    Growth.loadActivityFeed();
   },
 
   // --- SPA Router ---
@@ -60,14 +66,18 @@ const App = {
     switch (page) {
       case 'find':
         Rides.loadAllRides();
-        Rides.loadAISuggestions();
+        Growth.track('page_view', { page: 'find' });
+        break;
+      case 'home':
+        this.animateStats();
+        Growth.loadPlatformStats();
         break;
       case 'create':    Rides.initCreateMap(); break;
       case 'dashboard': Dashboard.load(); break;
       case 'profile':   Auth.loadProfile(); break;
       case 'cars':      Cars.load(); break;
       case 'ride':      if (param) Rides.loadDetail(param); break;
-      default:          this.animateStats(); break;
+      default:          this.animateStats(); Growth.loadPlatformStats(); break;
     }
 
     // Scroll to top
@@ -84,6 +94,10 @@ const App = {
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.user-menu')) {
         document.getElementById('userDropdown')?.classList.remove('show');
+      }
+      // Close notification panel on outside click
+      if (!e.target.closest('#notifPanel') && !e.target.closest('button[aria-label="Notifications"]')) {
+        document.getElementById('notifPanel')?.classList.add('hidden');
       }
     });
     document.getElementById('userAvatar')?.addEventListener('click', (e) => {

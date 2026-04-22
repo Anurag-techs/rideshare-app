@@ -81,19 +81,9 @@ const signupLimiter = rateLimit({
   message: { error: 'Too many signup attempts from this IP — please try again in an hour.' },
 });
 
-// AI endpoints: 30 per minute (OpenAI costs money)
-const aiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'AI rate limit exceeded — please wait a moment.' },
-});
-
 app.use('/api/', apiLimiter);
 app.use('/api/auth/login',  loginLimiter);
 app.use('/api/auth/signup', signupLimiter);
-app.use('/api/ai/',         aiLimiter);
 
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth',     require('./routes/auth'));
@@ -102,7 +92,11 @@ app.use('/api/rides',    require('./routes/rides'));
 app.use('/api/bookings', require('./routes/bookings'));
 app.use('/api/ratings',  require('./routes/ratings'));
 app.use('/api/payments', require('./routes/payments'));
-app.use('/api/ai',       require('./routes/ai'));
+app.use('/api/wallet',   require('./routes/wallet'));
+app.use('/api/admin',    require('./routes/admin'));
+app.use('/api/earnings', require('./routes/earnings'));
+app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/growth',    require('./routes/growth'));
 
 // ── Config endpoint — expose safe public keys to frontend ─────────────────────
 app.get('/api/config', (req, res) => {
@@ -110,7 +104,6 @@ app.get('/api/config', (req, res) => {
     googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY   || '',
     razorpayKeyId:    process.env.RAZORPAY_KEY_ID       || '',
     commissionRate:   parseFloat(process.env.COMMISSION_RATE) || 0.10,
-    aiEnabled:        !!(process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.includes('YOUR_')),
   });
 });
 
@@ -135,12 +128,36 @@ async function start() {
       const _rzpId  = (process.env.RAZORPAY_KEY_ID     || '').trim();
       const _rzpSec = (process.env.RAZORPAY_KEY_SECRET || '').trim();
       const _rzpOk  = _rzpId.startsWith('rzp_') && _rzpSec.length > 10;
-      console.log(`\n🚗 RideShare AI Platform running at http://localhost:${PORT}`);
+      console.log(`\n🚗 RideShare Platform running at http://localhost:${PORT}`);
       console.log(`   💳 Razorpay: ${_rzpOk
         ? `✅ ${_rzpId.startsWith('rzp_live') ? 'LIVE' : 'TEST'} (key: ${_rzpId.slice(0, 12)}...)`
         : `❌ NOT CONFIGURED — key="${_rzpId.slice(0, 8) || '(empty)'}" secret_len=${_rzpSec.length}`}`);
-      console.log(`   🤖 AI:       OpenAI   ${process.env.OPENAI_API_KEY?.includes('YOUR_') ? '(mock mode)' : '✅'}`);
       console.log(`   🔒 Rate limiting: enabled\n`);
+
+      // ── Retention Automation (Cron) ──────────────────────────────────────────────
+      // Runs every hour to re-engage inactive users
+      setInterval(() => {
+        try {
+          const { prepare } = require('./db/init');
+          // Find users who haven't had a notification in 24 hours
+          const usersToNotify = prepare(`
+            SELECT id FROM users
+            WHERE id NOT IN (SELECT user_id FROM notifications WHERE created_at >= datetime('now', '-1 day'))
+            LIMIT 20
+          `).all();
+          
+          const stmt = prepare(`INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`);
+          usersToNotify.forEach(u => {
+            stmt.run(u.id, '🚗 New rides near you!', 'Drivers have posted new rides on your frequent routes. Check them out before seats run out.', 'info');
+          });
+          if (usersToNotify.length > 0) {
+            console.log(`[CRON] Sent retention notification to ${usersToNotify.length} inactive users.`);
+          }
+        } catch (err) {
+          console.error('[CRON] Retention error:', err.message);
+        }
+      }, 60 * 60 * 1000); // 1 hour
+
     });
   } catch (err) {
     console.error('❌ Failed to start server:', err);

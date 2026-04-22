@@ -33,7 +33,7 @@ router.get('/search', authOptional, (req, res) => {
     else if (sort === 'time_desc') orderBy = 'r.departure_time DESC';
     else if (sort === 'rating') orderBy = 'u.avg_rating DESC';
 
-    const query = `SELECT r.*, u.name as driver_name, u.profile_photo as driver_photo, u.avg_rating as driver_rating, u.total_ratings as driver_total_ratings, c.model as car_model, c.color as car_color FROM rides r JOIN users u ON r.driver_id = u.id LEFT JOIN cars c ON r.car_id = c.id WHERE ${conditions.join(' AND ')} ORDER BY ${orderBy} LIMIT 50`;
+    const query = `SELECT r.*, (r.total_seats - r.available_seats) as booking_count, u.name as driver_name, u.profile_photo as driver_photo, u.avg_rating as driver_rating, u.total_ratings as driver_total_ratings, (SELECT COUNT(*) FROM rides WHERE driver_id = u.id AND status='completed') as driver_completed_rides, c.model as car_model, c.color as car_color FROM rides r JOIN users u ON r.driver_id = u.id LEFT JOIN cars c ON r.car_id = c.id WHERE ${conditions.join(' AND ')} ORDER BY ${orderBy} LIMIT 50`;
     const rides = prepare(query).all(...params);
     res.json({ rides });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Server error.' }); }
@@ -48,7 +48,7 @@ router.get('/my/driver', authRequired, (req, res) => {
 
 router.get('/:id', authOptional, (req, res) => {
   try {
-    const ride = prepare("SELECT r.*, u.name as driver_name, u.email as driver_email, u.phone as driver_phone, u.profile_photo as driver_photo, u.avg_rating as driver_rating, u.total_ratings as driver_total_ratings, c.model as car_model, c.color as car_color, c.license_plate as car_plate, c.car_image FROM rides r JOIN users u ON r.driver_id = u.id LEFT JOIN cars c ON r.car_id = c.id WHERE r.id = ?").get(req.params.id);
+    const ride = prepare("SELECT r.*, (r.total_seats - r.available_seats) as booking_count, u.name as driver_name, u.email as driver_email, u.phone as driver_phone, u.profile_photo as driver_photo, u.avg_rating as driver_rating, u.total_ratings as driver_total_ratings, (SELECT COUNT(*) FROM rides WHERE driver_id = u.id AND status='completed') as driver_completed_rides, c.model as car_model, c.color as car_color, c.license_plate as car_plate, c.car_image FROM rides r JOIN users u ON r.driver_id = u.id LEFT JOIN cars c ON r.car_id = c.id WHERE r.id = ?").get(req.params.id);
     if (!ride) return res.status(404).json({ error: 'Ride not found.' });
     const bookings = prepare("SELECT b.*, u.name as passenger_name, u.profile_photo as passenger_photo FROM bookings b JOIN users u ON b.passenger_id = u.id WHERE b.ride_id = ? AND b.status != 'cancelled'").all(req.params.id);
     res.json({ ride, bookings });
