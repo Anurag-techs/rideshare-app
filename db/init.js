@@ -8,7 +8,12 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
-const dbPath = path.resolve(process.env.DB_PATH || './database.sqlite');
+// Always resolve DB path relative to this file's directory (not CWD)
+// This prevents DB reset when the server is started from a different directory
+const dbPath = process.env.DB_PATH
+  ? path.resolve(process.env.DB_PATH)
+  : path.join(__dirname, '..', 'database.sqlite');
+console.log('[DB] Database path:', dbPath);
 let db = null;
 let inTransaction = false;
 

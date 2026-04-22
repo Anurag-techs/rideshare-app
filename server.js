@@ -22,6 +22,15 @@ if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ── UTF-8 Charset Middleware ──────────────────────────────────────────────────
+// Ensures all API JSON responses declare charset=utf-8 explicitly
+// This prevents ₹ from rendering as â‚¹ in some browsers/clients
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(uploadsDir));
 
