@@ -80,12 +80,15 @@ router.post('/create-order', authRequired, async (req, res) => {
       });
     }
 
-    // ── Prevent double-booking ─────────────────────────────────────────────
+    // ── Prevent double-booking (only block confirmed bookings) ───────────────
+    // Use status = 'confirmed' NOT status != 'cancelled' so users can retry
+    // after a failed or incomplete payment (those rows have status 'pending').
     const existing = prepare(
-      "SELECT id FROM bookings WHERE ride_id = ? AND passenger_id = ? AND status != 'cancelled'"
+      "SELECT id FROM bookings WHERE ride_id = ? AND passenger_id = ? AND status = 'confirmed'"
     ).get(rideId, userId);
     if (existing) {
-      return res.status(409).json({ error: 'You have already booked this ride.' });
+      console.log('[CREATE-ORDER] Duplicate confirmed booking detected — bookingId:', existing.id);
+      return res.status(409).json({ error: 'You already have a confirmed booking for this ride.' });
     }
 
     const totalAmount = parseFloat((ride.price_per_seat * seatCount).toFixed(2));
@@ -285,10 +288,14 @@ router.post('/book-free', authRequired, (req, res) => {
     if (ride.price_per_seat > 0)                     return res.status(400).json({ error: 'This is a paid ride — use the payment flow.' });
     if (ride.available_seats < seatCount)            return res.status(400).json({ error: `Not enough seats. Only ${ride.available_seats} left.` });
 
+    // Only block if a confirmed booking exists — not pending/failed ones
     const existing = prepare(
-      "SELECT id FROM bookings WHERE ride_id = ? AND passenger_id = ? AND status != 'cancelled'"
+      "SELECT id FROM bookings WHERE ride_id = ? AND passenger_id = ? AND status = 'confirmed'"
     ).get(rideId, userId);
-    if (existing) return res.status(409).json({ error: 'You have already booked this ride.' });
+    if (existing) {
+      console.log('[BOOK-FREE] Duplicate confirmed booking detected — bookingId:', existing.id);
+      return res.status(409).json({ error: 'You already have a confirmed booking for this ride.' });
+    }
 
     const doBook = transaction(() => {
       const result = prepare(
