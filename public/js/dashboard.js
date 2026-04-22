@@ -43,14 +43,14 @@ const Dashboard = {
     safeSet('statPosted',   rides.length);
     safeSet('statBooked',   bookings.length);
     safeSet('statUpcoming', upcomingRides + upcomingBookings);
-    safeSet('statEarnings', totalEarned > 0 ? `â‚¹${totalEarned.toFixed(0)}` : 'â‚¹0');
+    safeSet('statEarnings', totalEarned > 0 ? `₹${totalEarned.toFixed(0)}` : '₹0');
     safeSet('statRating',   user?.avg_rating > 0 ? `${user.avg_rating} â­` : '-');
 
     // â”€â”€ Step 4: Driver rides â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const driverEl = document.getElementById('driverRides');
     if (driverEl) {
       if (!rides.length) {
-        driverEl.innerHTML = '<div class="empty-state"><div class="empty-icon">ðŸš—</div><h3>No rides posted</h3><p><a href="#/create">Post your first ride!</a></p></div>';
+        driverEl.innerHTML = '<div class="empty-state"><div class="empty-icon">🚗</div><h3>No rides posted</h3><p><a href="#/create">Post your first ride!</a></p></div>';
       } else {
         driverEl.innerHTML = rides.map(r => {
           const date = new Date(r.departure_time);
@@ -65,13 +65,13 @@ const Dashboard = {
               </div>
               <div style="text-align:right;">
                 <span style="color:${statusColors[r.status]};font-weight:600;text-transform:capitalize;">${r.status}</span>
-                <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;">ðŸ“… ${dateStr} ðŸ• ${timeStr}</div>
+                <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;">📅 ${dateStr} ðŸ• ${timeStr}</div>
               </div>
             </div>
             <div class="ride-meta" style="margin-top:12px;">
-              <span>ðŸ’º ${r.available_seats}/${r.total_seats} seats left</span>
-              <span>ðŸ‘¥ ${r.booking_count || 0} booking(s)</span>
-              <span>ðŸ’° ${r.price_per_seat > 0 ? 'â‚¹'+r.price_per_seat : 'Free'}</span>
+              <span>💺 ${r.available_seats}/${r.total_seats} seats left</span>
+              <span>👥 ${r.booking_count || 0} booking(s)</span>
+              <span>💰 ${r.price_per_seat > 0 ? '₹'+r.price_per_seat : 'Free'}</span>
             </div>
           </div>`;
         }).join('');
@@ -82,7 +82,7 @@ const Dashboard = {
     const passEl = document.getElementById('passengerBookings');
     if (passEl) {
       if (!bookings.length) {
-        passEl.innerHTML = '<div class="empty-state"><div class="empty-icon">ðŸŽ«</div><h3>No bookings yet</h3><p><a href="#/find">Find a ride!</a></p></div>';
+        passEl.innerHTML = '<div class="empty-state"><div class="empty-icon">🎫</div><h3>No bookings yet</h3><p><a href="#/find">Find a ride!</a></p></div>';
       } else {
         passEl.innerHTML = bookings.map(b => {
           const date = new Date(b.departure_time);
@@ -99,9 +99,9 @@ const Dashboard = {
               <span class="seats-badge ${b.status==='cancelled'?'full':''} ">${b.status}</span>
             </div>
             <div class="ride-meta" style="margin-top:12px;">
-              <span>ðŸ“… ${dateStr} ðŸ• ${timeStr}</span>
+              <span>📅 ${dateStr} ðŸ• ${timeStr}</span>
               <span>ðŸ§‘â€âœˆï¸ ${Rides.esc(b.driver_name)}</span>
-              <span>ðŸ’° ${b.price_per_seat > 0 ? 'â‚¹'+b.price_per_seat : 'Free'}</span>
+              <span>💰 ${b.price_per_seat > 0 ? '₹'+b.price_per_seat : 'Free'}</span>
             </div>
             <div style="display:flex;gap:8px;margin-top:12px;">
               ${canCancel ? `<button class="btn btn-ghost btn-sm cancel-booking-btn" data-id="${b.id}">Cancel</button>` : ''}
@@ -137,7 +137,7 @@ const Dashboard = {
     const paymentsEl = document.getElementById('paymentsList');
     if (paymentsEl) {
       if (!payments.length) {
-        paymentsEl.innerHTML = '<div class="empty-state"><div class="empty-icon">ðŸ’³</div><h3>No payments yet</h3><p>Book a paid ride to see payments here.</p></div>';
+        paymentsEl.innerHTML = '<div class="empty-state"><div class="empty-icon">💳</div><h3>No payments yet</h3><p>Book a paid ride to see payments here.</p></div>';
       } else {
         paymentsEl.innerHTML = payments.map(p => {
           const date        = new Date(p.created_at);
@@ -152,10 +152,10 @@ const Dashboard = {
               <span style="color:${statusColor};font-weight:600;text-transform:capitalize;">${p.status}</span>
             </div>
             <div class="ride-meta" style="margin-top:12px;">
-              <span>ðŸ“… ${dateStr}</span>
-              <span>ðŸ’° Total: â‚¹${p.amount}</span>
-              <span style="color:var(--warning);">ðŸ¦ Fee: â‚¹${p.commission_amount||0}</span>
-              <span>ðŸ’º ${p.seats_booked} seat(s)</span>
+              <span>📅 ${dateStr}</span>
+              <span>💰 Total: ₹${p.amount}</span>
+              <span style="color:var(--warning);">ðŸ¦ Fee: ₹${p.commission_amount||0}</span>
+              <span>💺 ${p.seats_booked} seat(s)</span>
             </div>
             ${p.razorpay_payment_id ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;">ID: ${p.razorpay_payment_id}</div>` : ''}
           </div>`;
@@ -290,14 +290,14 @@ const Cars = {
       const data = await API.get('/cars');
       const list = document.getElementById('carsList');
       if (!data.cars.length) {
-        list.innerHTML = '<div class="empty-state"><div class="empty-icon">ðŸš™</div><h3>No cars added yet</h3></div>';
+        list.innerHTML = '<div class="empty-state"><div class="empty-icon">🚙</div><h3>No cars added yet</h3></div>';
       } else {
         list.innerHTML = data.cars.map(c => `
           <div class="car-card glass-card">
-            <div class="car-card-icon">ðŸš—</div>
+            <div class="car-card-icon">🚗</div>
             <div class="car-card-info">
               <h4>${Rides.esc(c.model)}</h4>
-              <p>${c.total_seats} seats ${c.color?'â€¢ '+c.color:''} ${c.license_plate?'â€¢ '+c.license_plate:''}</p>
+              <p>${c.total_seats} seats ${c.color?'• '+c.color:''} ${c.license_plate?'• '+c.license_plate:''}</p>
             </div>
             <div class="car-card-actions">
               <button class="btn btn-ghost btn-sm delete-car-btn" data-id="${c.id}">ðŸ—‘ï¸</button>
