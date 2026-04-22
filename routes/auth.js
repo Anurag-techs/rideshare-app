@@ -44,11 +44,31 @@ router.post('/login', async (req, res) => {
 
 router.get('/me', authRequired, (req, res) => {
   try {
-    const user = prepare('SELECT id, name, email, phone, profile_photo, avg_rating, total_ratings, created_at FROM users WHERE id = ?').get(req.user.id);
-    if (!user) return res.status(404).json({ error: 'User not found.' });
+    const userId = parseInt(req.user.id, 10);
+    console.log('[AUTH /me] req.user:', req.user, '| querying id:', userId);
+
+    if (!userId || isNaN(userId)) {
+      console.error('[AUTH /me] Invalid user id in token:', req.user.id);
+      return res.status(400).json({ error: 'Invalid token payload — missing user id.' });
+    }
+
+    const user = prepare(
+      'SELECT id, name, email, phone, profile_photo, avg_rating, total_ratings, created_at FROM users WHERE id = ?'
+    ).get(userId);
+
+    if (!user) {
+      console.error('[AUTH /me] No user found in DB for id:', userId);
+      return res.status(404).json({ error: `User not found (id=${userId}). Please log in again.` });
+    }
+
+    console.log('[AUTH /me] Returning user:', user.id, user.email);
     res.json({ user });
-  } catch (err) { res.status(500).json({ error: 'Server error.' }); }
+  } catch (err) {
+    console.error('[AUTH /me] Server error:', err);
+    res.status(500).json({ error: 'Server error fetching user.' });
+  }
 });
+
 
 router.put('/profile', authRequired, (req, res) => {
   try {

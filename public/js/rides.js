@@ -393,13 +393,15 @@ const Rides = {
       // ── STEP 1: Create Razorpay order on the backend ──────────────────────
       // Backend validates ride, checks availability, returns order_id
       // NO booking is created yet at this point.
+      console.log('[PAYMENT] Calling create-order with:', { ride_id: rideId, seats });
       const order = await API.post('/payments/create-order', { ride_id: rideId, seats });
+      console.log('[PAYMENT] create-order response:', order);
 
       // ── MOCK MODE (no real Razorpay keys) ─────────────────────────────────
       if (order.mock) {
         // In mock mode, skip Razorpay popup and call verify directly
         // Backend verify creates the booking atomically
-        console.log('BOOKING AFTER PAYMENT: Mock mode payment verification');
+        console.log('[PAYMENT] Mock mode — verifying mock order:', order.order_id);
         await API.post('/payments/verify', {
           ride_id:             rideId,
           seats,

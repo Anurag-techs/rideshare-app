@@ -48,61 +48,100 @@ function calcCommission(totalAmount) {
  */
 router.post('/create-order', authRequired, async (req, res) => {
   try {
-    const { ride_id, seats } = req.body;
-    const seatCount = Math.max(1, parseInt(seats) || 1);
+    // ── Parse & validate inputs ────────────────────────────────────────────
+    const rideId    = parseInt(req.body.ride_id, 10);
+    const seatCount = Math.max(1, parseInt(req.body.seats, 10) || 1);
+    const userId    = parseInt(req.user.id, 10);
 
-    // Validate ride
-    const ride = prepare("SELECT * FROM rides WHERE id = ? AND status = 'active'").get(ride_id);
-    if (!ride)                           return res.status(404).json({ error: 'Ride not found.' });
-    if (ride.driver_id === req.user.id)  return res.status(400).json({ error: "You can't book your own ride." });
-    if (ride.available_seats < seatCount) return res.status(400).json({ error: 'Not enough seats available.' });
+    console.log('[CREATE-ORDER] req.body:', req.body, '| req.user:', req.user,
+                '| rideId:', rideId, '| seats:', seatCount, '| userId:', userId);
 
-    // Prevent double-booking
+    if (!rideId || isNaN(rideId)) {
+      return res.status(400).json({ error: 'Invalid ride_id provided.' });
+    }
+    if (!userId || isNaN(userId)) {
+      return res.status(401).json({ error: 'Unauthorized — invalid token payload.' });
+    }
+
+    // ── Fetch & validate ride ──────────────────────────────────────────────
+    const ride = prepare("SELECT * FROM rides WHERE id = ? AND status = 'active'").get(rideId);
+    console.log('[CREATE-ORDER] ride found:', ride ? `id=${ride.id} driver=${ride.driver_id} seats=${ride.available_seats}` : 'NOT FOUND');
+
+    if (!ride) {
+      return res.status(404).json({ error: `Ride #${rideId} not found or no longer active.` });
+    }
+    // Use == (loose) to handle potential int/string mismatch from sql.js vs JWT
+    if (parseInt(ride.driver_id) === userId) {
+      return res.status(400).json({ error: "You can't book your own ride." });
+    }
+    if (ride.available_seats < seatCount) {
+      return res.status(400).json({
+        error: `Not enough seats. Requested ${seatCount}, only ${ride.available_seats} available.`
+      });
+    }
+
+    // ── Prevent double-booking ─────────────────────────────────────────────
     const existing = prepare(
       "SELECT id FROM bookings WHERE ride_id = ? AND passenger_id = ? AND status != 'cancelled'"
-    ).get(ride_id, req.user.id);
-    if (existing) return res.status(409).json({ error: 'You have already booked this ride.' });
+    ).get(rideId, userId);
+    if (existing) {
+      return res.status(409).json({ error: 'You have already booked this ride.' });
+    }
 
-    const totalAmount = ride.price_per_seat * seatCount;
+    const totalAmount = parseFloat((ride.price_per_seat * seatCount).toFixed(2));
     const { commission, driverEarning } = calcCommission(totalAmount);
+    console.log('[CREATE-ORDER] totalAmount:', totalAmount, '| commission:', commission, '| driverEarning:', driverEarning);
 
     // ── Free ride — skip payment ───────────────────────────────────────────
     if (totalAmount <= 0) {
-      return res.json({
-        free: true,
-        totalAmount: 0,
-        commission: 0,
-        driverEarning: 0,
-      });
+      console.log('[CREATE-ORDER] Free ride — skipping payment');
+      return res.json({ free: true, totalAmount: 0, commission: 0, driverEarning: 0 });
     }
 
     // ── Mock mode — no real Razorpay keys ─────────────────────────────────
     if (!razorpay) {
+      const mockOrderId = `mock_order_${Date.now()}`;
+      console.log('[CREATE-ORDER] Mock mode — returning mock order:', mockOrderId);
       return res.json({
-        free: false,
-        mock: true,
+        free:          false,
+        mock:          true,
         totalAmount,
         commission,
         driverEarning,
-        key_id: 'mock',
-        order_id: `mock_order_${Date.now()}`,
-        currency: 'INR',
-        message: 'Razorpay not configured — mock mode',
+        key_id:        'mock',
+        order_id:      mockOrderId,
+        amount:        Math.round(totalAmount * 100),
+        currency:      'INR',
+        ride_id:       rideId,
+        seats:         seatCount,
+        ride_from:     ride.from_location,
+        ride_to:       ride.to_location,
+        message:       'Razorpay not configured — mock mode',
       });
     }
 
     // ── Real Razorpay order ────────────────────────────────────────────────
-    // Razorpay expects amount in paise (1 INR = 100 paise)
-    const order = await razorpay.orders.create({
-      amount:   Math.round(totalAmount * 100),
-      currency: 'INR',
-      notes: {
-        ride_id:    ride_id.toString(),
-        user_id:    req.user.id.toString(),
-        seats:      seatCount.toString(),
-        commission: commission.toString(),
-      },
-    });
+    console.log('[CREATE-ORDER] Creating real Razorpay order for amount (paise):', Math.round(totalAmount * 100));
+    let order;
+    try {
+      order = await razorpay.orders.create({
+        amount:   Math.round(totalAmount * 100),
+        currency: 'INR',
+        notes: {
+          ride_id:    rideId.toString(),
+          user_id:    userId.toString(),
+          seats:      seatCount.toString(),
+          commission: commission.toString(),
+        },
+      });
+    } catch (rzpErr) {
+      console.error('[CREATE-ORDER] Razorpay API error:', rzpErr);
+      const msg = rzpErr?.error?.description || rzpErr?.message || 'Razorpay order creation failed.';
+      return res.status(502).json({ error: `Payment gateway error: ${msg}` });
+    }
+
+    console.log('[CREATE-ORDER] Razorpay order created:', order.id);
+    const driverName = prepare('SELECT name FROM users WHERE id = ?').get(ride.driver_id)?.name || '';
 
     res.json({
       free:          false,
@@ -113,16 +152,16 @@ router.post('/create-order', authRequired, async (req, res) => {
       key_id:        rzpKeyId,
       order_id:      order.id,
       currency:      order.currency,
-      amount:        order.amount,   // in paise
-      ride_id,
+      amount:        order.amount,
+      ride_id:       rideId,
       seats:         seatCount,
       ride_from:     ride.from_location,
       ride_to:       ride.to_location,
-      driver_name:   prepare('SELECT name FROM users WHERE id = ?').get(ride.driver_id)?.name,
+      driver_name:   driverName,
     });
   } catch (err) {
-    console.error('❌ create-order error:', err);
-    res.status(500).json({ error: 'Failed to create payment order.' });
+    console.error('[CREATE-ORDER] Unexpected error:', err);
+    res.status(500).json({ error: err.message || 'Failed to create payment order.' });
   }
 });
 
@@ -140,24 +179,28 @@ router.post('/verify', authRequired, (req, res) => {
       razorpay_signature,
     } = req.body;
 
-    const seatCount = Math.max(1, parseInt(seats) || 1);
+    const rideId    = parseInt(ride_id, 10);
+    const seatCount = Math.max(1, parseInt(seats, 10) || 1);
+    const userId    = parseInt(req.user.id, 10);
+    console.log('[VERIFY] rideId:', rideId, '| seats:', seatCount, '| userId:', userId, '| order:', razorpay_order_id);
 
     // Validate ride
-    const ride = prepare("SELECT * FROM rides WHERE id = ? AND status = 'active'").get(ride_id);
-    if (!ride) return res.status(404).json({ error: 'Ride not found.' });
+    const ride = prepare("SELECT * FROM rides WHERE id = ? AND status = 'active'").get(rideId);
+    if (!ride) return res.status(404).json({ error: `Ride #${rideId} not found.` });
 
-    const totalAmount = ride.price_per_seat * seatCount;
+    const totalAmount = parseFloat((ride.price_per_seat * seatCount).toFixed(2));
     const { commission, driverEarning } = calcCommission(totalAmount);
 
     // ── Verify HMAC-SHA256 signature (skip in mock mode) ──────────────────
     if (razorpay && !razorpay_order_id?.startsWith('mock_')) {
-      const body      = `${razorpay_order_id}|${razorpay_payment_id}`;
-      const expected  = crypto
+      const body     = `${razorpay_order_id}|${razorpay_payment_id}`;
+      const expected = crypto
         .createHmac('sha256', rzpKeySecret)
         .update(body)
         .digest('hex');
 
       if (expected !== razorpay_signature) {
+        console.error('[VERIFY] Signature mismatch. Expected:', expected, 'Got:', razorpay_signature);
         return res.status(400).json({ error: 'Payment verification failed — invalid signature.' });
       }
     }
@@ -171,20 +214,18 @@ router.post('/verify', authRequired, (req, res) => {
             razorpay_signature, status)
          VALUES (?, ?, ?, ?, ?, ?, 'paid', ?, ?, ?, 'confirmed')`
       ).run(
-        ride_id, req.user.id, seatCount, totalAmount,
+        rideId, userId, seatCount, totalAmount,
         commission, driverEarning,
-        razorpay_order_id  || null,
+        razorpay_order_id   || null,
         razorpay_payment_id || null,
         razorpay_signature  || null,
       );
 
       const bookingId = bookingResult.lastInsertRowid;
 
-      // Deduct available seats
       prepare('UPDATE rides SET available_seats = available_seats - ? WHERE id = ?')
-        .run(seatCount, ride_id);
+        .run(seatCount, rideId);
 
-      // Insert detailed payment record
       prepare(
         `INSERT INTO payments
            (booking_id, user_id, razorpay_order_id, razorpay_payment_id,
@@ -192,8 +233,8 @@ router.post('/verify', authRequired, (req, res) => {
             currency, status)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'INR', 'paid')`
       ).run(
-        bookingId, req.user.id,
-        razorpay_order_id  || null,
+        bookingId, userId,
+        razorpay_order_id   || null,
         razorpay_payment_id || null,
         razorpay_signature  || null,
         totalAmount, commission, driverEarning,
@@ -203,8 +244,8 @@ router.post('/verify', authRequired, (req, res) => {
     });
 
     const bookingId = doBook();
+    console.log('[VERIFY] Booking created:', bookingId);
 
-    // Return full booking object
     const booking = prepare(
       `SELECT b.*, r.from_location, r.to_location, r.departure_time,
               r.price_per_seat, u.name AS driver_name
@@ -221,8 +262,8 @@ router.post('/verify', authRequired, (req, res) => {
       driverEarning,
     });
   } catch (err) {
-    console.error('❌ payment verify error:', err);
-    res.status(500).json({ error: 'Failed to verify payment.' });
+    console.error('[VERIFY] Error:', err);
+    res.status(500).json({ error: err.message || 'Failed to verify payment.' });
   }
 });
 
@@ -233,18 +274,20 @@ router.post('/verify', authRequired, (req, res) => {
  */
 router.post('/book-free', authRequired, (req, res) => {
   try {
-    const { ride_id, seats } = req.body;
-    const seatCount = Math.max(1, parseInt(seats) || 1);
+    const rideId    = parseInt(req.body.ride_id, 10);
+    const seatCount = Math.max(1, parseInt(req.body.seats, 10) || 1);
+    const userId    = parseInt(req.user.id, 10);
+    console.log('[BOOK-FREE] rideId:', rideId, '| seats:', seatCount, '| userId:', userId);
 
-    const ride = prepare("SELECT * FROM rides WHERE id = ? AND status = 'active'").get(ride_id);
-    if (!ride)                            return res.status(404).json({ error: 'Ride not found.' });
-    if (ride.driver_id === req.user.id)   return res.status(400).json({ error: "You can't book your own ride." });
-    if (ride.price_per_seat > 0)          return res.status(400).json({ error: 'This ride is not free.' });
-    if (ride.available_seats < seatCount) return res.status(400).json({ error: 'Not enough seats.' });
+    const ride = prepare("SELECT * FROM rides WHERE id = ? AND status = 'active'").get(rideId);
+    if (!ride)                                       return res.status(404).json({ error: `Ride #${rideId} not found or not active.` });
+    if (parseInt(ride.driver_id) === userId)         return res.status(400).json({ error: "You can't book your own ride." });
+    if (ride.price_per_seat > 0)                     return res.status(400).json({ error: 'This is a paid ride — use the payment flow.' });
+    if (ride.available_seats < seatCount)            return res.status(400).json({ error: `Not enough seats. Only ${ride.available_seats} left.` });
 
     const existing = prepare(
       "SELECT id FROM bookings WHERE ride_id = ? AND passenger_id = ? AND status != 'cancelled'"
-    ).get(ride_id, req.user.id);
+    ).get(rideId, userId);
     if (existing) return res.status(409).json({ error: 'You have already booked this ride.' });
 
     const doBook = transaction(() => {
@@ -253,14 +296,15 @@ router.post('/book-free', authRequired, (req, res) => {
            (ride_id, passenger_id, seats_booked, total_amount,
             commission_amount, driver_earning, payment_status, status)
          VALUES (?, ?, ?, 0, 0, 0, 'free', 'confirmed')`
-      ).run(ride_id, req.user.id, seatCount);
+      ).run(rideId, userId, seatCount);
       prepare('UPDATE rides SET available_seats = available_seats - ? WHERE id = ?')
-        .run(seatCount, ride_id);
+        .run(seatCount, rideId);
       return result.lastInsertRowid;
     });
 
     const bookingId = doBook();
-    const booking   = prepare(
+    console.log('[BOOK-FREE] Booking created:', bookingId);
+    const booking = prepare(
       `SELECT b.*, r.from_location, r.to_location, r.departure_time,
               r.price_per_seat, u.name AS driver_name
        FROM bookings b JOIN rides r ON b.ride_id = r.id
@@ -269,8 +313,8 @@ router.post('/book-free', authRequired, (req, res) => {
 
     res.status(201).json({ booking, message: 'Free ride booked successfully! 🎉' });
   } catch (err) {
-    console.error('❌ book-free error:', err);
-    res.status(500).json({ error: 'Failed to book ride.' });
+    console.error('[BOOK-FREE] Error:', err);
+    res.status(500).json({ error: err.message || 'Failed to book ride.' });
   }
 });
 
@@ -280,6 +324,7 @@ router.post('/book-free', authRequired, (req, res) => {
  */
 router.get('/my', authRequired, (req, res) => {
   try {
+    const userId = parseInt(req.user.id, 10);
     const payments = prepare(
       `SELECT p.*, b.seats_booked, r.from_location, r.to_location, r.departure_time
        FROM payments p
@@ -287,10 +332,11 @@ router.get('/my', authRequired, (req, res) => {
        JOIN rides    r ON b.ride_id    = r.id
        WHERE p.user_id = ?
        ORDER BY p.created_at DESC`
-    ).all(req.user.id);
+    ).all(userId);
     res.json({ payments });
   } catch (err) {
-    res.status(500).json({ error: 'Server error.' });
+    console.error('[PAYMENTS /my] Error:', err);
+    res.status(500).json({ error: err.message || 'Server error.' });
   }
 });
 
