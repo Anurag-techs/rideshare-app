@@ -29,29 +29,43 @@ app.use('/uploads', express.static(uploadsDir));
 // General API limit: 200 requests per 15 min per IP
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 200,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests — please slow down.' },
 });
 
-// Stricter limit for auth endpoints (prevent brute-force)
-const authLimiter = rateLimit({
+// Login: 50 per 15 min (brute-force protection)
+const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: { error: 'Too many auth attempts — try again in 15 minutes.' },
+  max: 50,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts — please wait 15 minutes and try again.' },
 });
 
-// Stricter limit for AI endpoints (OpenAI costs money)
+// Signup: 20 per hour, only failed attempts counted
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: 'Too many signup attempts from this IP — please try again in an hour.' },
+});
+
+// AI endpoints: 30 per minute (OpenAI costs money)
 const aiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 15,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { error: 'AI rate limit exceeded — please wait a moment.' },
 });
 
 app.use('/api/', apiLimiter);
-app.use('/api/auth/login',  authLimiter);
-app.use('/api/auth/signup', authLimiter);
+app.use('/api/auth/login',  loginLimiter);
+app.use('/api/auth/signup', signupLimiter);
 app.use('/api/ai/',         aiLimiter);
 
 // ── API Routes ────────────────────────────────────────────────────────────────
