@@ -112,13 +112,14 @@ const App = {
   },
 
   // --- Toast ---
-  showToast(message, type = 'info') {
+  showToast(message, type = 'info', duration = 3500) {
     const container = document.getElementById('toastContainer');
     const toast = document.createElement('div');
+    // Supported types: success, error, info, warning
     toast.className = `toast ${type}`;
     toast.textContent = message;
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
+    setTimeout(() => toast.remove(), duration);
   },
 
   // --- Rating Modal ---

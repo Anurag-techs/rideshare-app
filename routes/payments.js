@@ -17,21 +17,25 @@ const { prepare, transaction, saveDb } = require('../db/init');
 const { authRequired } = require('../middleware/auth');
 const router   = express.Router();
 
-// ── Init Razorpay (gracefully degrade if keys not set) ─────────────────────
+// ── Init Razorpay ─────────────────────────────────────────────────────────────
 const COMMISSION_RATE = parseFloat(process.env.COMMISSION_RATE) || 0.10;
 
 let razorpay = null;
-const rzpKeyId     = process.env.RAZORPAY_KEY_ID     || '';
-const rzpKeySecret = process.env.RAZORPAY_KEY_SECRET || '';
-const rzpConfigured = rzpKeyId && !rzpKeyId.includes('YOUR_') &&
-                      rzpKeySecret && !rzpKeySecret.includes('YOUR_');
+const rzpKeyId     = (process.env.RAZORPAY_KEY_ID     || '').trim();
+const rzpKeySecret = (process.env.RAZORPAY_KEY_SECRET || '').trim();
+const rzpConfigured = rzpKeyId.startsWith('rzp_') && rzpKeySecret.length > 10;
+
+console.log('[Razorpay] KEY_ID  present:', !!rzpKeyId,  '| starts with rzp_:', rzpKeyId.startsWith('rzp_'),  '| prefix:', rzpKeyId.slice(0, 12) || '(empty)');
+console.log('[Razorpay] SECRET  present:', !!rzpKeySecret, '| length:', rzpKeySecret.length || 0);
+console.log('[Razorpay] Mode:', rzpConfigured ? 'LIVE / TEST' : 'MOCK (keys missing or invalid)');
 
 if (rzpConfigured) {
   const Razorpay = require('razorpay');
   razorpay = new Razorpay({ key_id: rzpKeyId, key_secret: rzpKeySecret });
-  console.log('💳 Razorpay initialized');
+  console.log('✅ Razorpay initialized successfully');
 } else {
-  console.warn('⚠️  Razorpay keys not set — running in MOCK payment mode');
+  console.warn('⚠️  Razorpay keys missing/invalid — running in MOCK payment mode');
+  console.warn('   Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in your environment (Render dashboard / .env)');
 }
 
 // ── Helper: compute commission split ───────────────────────────────────────
@@ -40,6 +44,25 @@ function calcCommission(totalAmount) {
   const driverEarning = parseFloat((totalAmount - commission).toFixed(2));
   return { commission, driverEarning };
 }
+
+/**
+ * GET /api/payments/mode
+ * Public endpoint — tells the frontend whether Razorpay is live/test or mock.
+ * Safe: never exposes secret keys.
+ */
+router.get('/mode', (req, res) => {
+  res.json({
+    mock:       !razorpay,
+    configured: !!razorpay,
+    keyPrefix:  rzpKeyId ? rzpKeyId.slice(0, 8) : null,  // e.g. "rzp_live" or "rzp_test"
+    isLive:     rzpKeyId.startsWith('rzp_live'),
+    isTest:     rzpKeyId.startsWith('rzp_test'),
+    message:    razorpay
+      ? `Razorpay active (${rzpKeyId.startsWith('rzp_live') ? 'LIVE' : 'TEST'} mode)`
+      : 'Razorpay not configured — add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to environment variables',
+  });
+});
+
 
 /**
  * POST /api/payments/create-order
