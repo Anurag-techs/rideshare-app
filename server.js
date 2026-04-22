@@ -132,9 +132,14 @@ async function start() {
   try {
     await initialize();
     app.listen(PORT, () => {
+      const _rzpId  = (process.env.RAZORPAY_KEY_ID     || '').trim();
+      const _rzpSec = (process.env.RAZORPAY_KEY_SECRET || '').trim();
+      const _rzpOk  = _rzpId.startsWith('rzp_') && _rzpSec.length > 10;
       console.log(`\n🚗 RideShare AI Platform running at http://localhost:${PORT}`);
-      console.log(`   💳 Payments: Razorpay ${process.env.RAZORPAY_KEY_ID?.includes('YOUR_') ? '(mock mode)' : '✅'}`);
-      console.log(`   🤖 AI:       OpenAI   ${process.env.OPENAI_API_KEY?.includes('YOUR_')  ? '(mock mode)' : '✅'}`);
+      console.log(`   💳 Razorpay: ${_rzpOk
+        ? `✅ ${_rzpId.startsWith('rzp_live') ? 'LIVE' : 'TEST'} (key: ${_rzpId.slice(0, 12)}...)`
+        : `❌ NOT CONFIGURED — key="${_rzpId.slice(0, 8) || '(empty)'}" secret_len=${_rzpSec.length}`}`);
+      console.log(`   🤖 AI:       OpenAI   ${process.env.OPENAI_API_KEY?.includes('YOUR_') ? '(mock mode)' : '✅'}`);
       console.log(`   🔒 Rate limiting: enabled\n`);
     });
   } catch (err) {

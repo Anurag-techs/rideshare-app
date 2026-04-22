@@ -124,25 +124,14 @@ router.post('/create-order', authRequired, async (req, res) => {
       return res.json({ free: true, totalAmount: 0, commission: 0, driverEarning: 0 });
     }
 
-    // ── Mock mode — no real Razorpay keys ─────────────────────────────────
+    // ── Mock mode — Razorpay keys not configured ─────────────────────────────
+    // BLOCK paid rides — never create fake bookings in production.
+    // Free rides go through /book-free instead, so this only fires for paid rides.
     if (!razorpay) {
-      const mockOrderId = `mock_order_${Date.now()}`;
-      console.log('[CREATE-ORDER] Mock mode — returning mock order:', mockOrderId);
-      return res.json({
-        free:          false,
-        mock:          true,
-        totalAmount,
-        commission,
-        driverEarning,
-        key_id:        'mock',
-        order_id:      mockOrderId,
-        amount:        Math.round(totalAmount * 100),
-        currency:      'INR',
-        ride_id:       rideId,
-        seats:         seatCount,
-        ride_from:     ride.from_location,
-        ride_to:       ride.to_location,
-        message:       'Razorpay not configured — mock mode',
+      console.error('[CREATE-ORDER] ⚠️  Razorpay not configured — blocking paid booking for ride', rideId);
+      return res.status(503).json({
+        error: 'Payment system not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to your environment variables (Render dashboard).',
+        mock:  true,
       });
     }
 
@@ -161,7 +150,17 @@ router.post('/create-order', authRequired, async (req, res) => {
         },
       });
     } catch (rzpErr) {
-      console.error('[CREATE-ORDER] Razorpay API error:', rzpErr);
+      console.error('[CREATE-ORDER] Razorpay API error:', JSON.stringify(rzpErr));
+      // Razorpay returns statusCode 401 when keys are wrong/revoked
+      const isAuthFail = rzpErr?.statusCode === 401 ||
+                         rzpErr?.error?.code === 'BAD_REQUEST_ERROR' ||
+                         (rzpErr?.error?.description || '').toLowerCase().includes('authentication');
+      if (isAuthFail) {
+        console.error('[CREATE-ORDER] ❌ Razorpay key authentication failed — keys may be revoked or wrong');
+        return res.status(401).json({
+          error: 'Razorpay authentication failed — the API keys are invalid or revoked. Regenerate them at dashboard.razorpay.com → Settings → API Keys.',
+        });
+      }
       const msg = rzpErr?.error?.description || rzpErr?.message || 'Razorpay order creation failed.';
       return res.status(502).json({ error: `Payment gateway error: ${msg}` });
     }

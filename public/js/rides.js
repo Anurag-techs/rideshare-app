@@ -397,22 +397,18 @@ const Rides = {
       const order = await API.post('/payments/create-order', { ride_id: rideId, seats });
       console.log('[PAYMENT] create-order response:', order);
 
-      // ── MOCK MODE (Razorpay keys not set on this server) ──────────────────
+      // ── MOCK MODE / PAYMENT NOT CONFIGURED ────────────────────────────────
+      // Backend returned mock:true = Razorpay keys missing on server.
+      // NEVER create a booking — show a hard error so the user knows what's wrong.
       if (order.mock) {
-        console.warn('[PAYMENT] ⚠️ Server is in MOCK mode — no real payment processed');
-        console.warn('[PAYMENT] To enable real payments, set RAZORPAY_KEY_ID + RAZORPAY_KEY_SECRET in environment');
-        console.log('[PAYMENT] Mock mode — verifying mock order:', order.order_id);
-        await API.post('/payments/verify', {
-          ride_id:             rideId,
-          seats,
-          razorpay_order_id:   order.order_id,
-          razorpay_payment_id: 'mock_pay_' + Date.now(),
-          razorpay_signature:  'mock_sig',
-        });
-        document.getElementById('paymentModal').classList.add('hidden');
-        // Show a distinct warning — not a success — so it's clear no money changed hands
-        App.showToast('⚠️ MOCK booking created — Razorpay not configured. Set env vars on Render to enable real payments.', 'warning', 6000);
-        _self.loadDetail(rideId);
+        console.error('[PAYMENT] ❌ Server is in MOCK mode — Razorpay not configured');
+        Auth.setLoading(btn, false);
+        btn.disabled = false;
+        App.showToast(
+          '❌ Payments not configured on this server. Contact the admin to set Razorpay keys.',
+          'error',
+          6000
+        );
         return;
       }
 
