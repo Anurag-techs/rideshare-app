@@ -1,6 +1,6 @@
 /**
  * server.js — Main Express application entry point
- * Production-ready: rate limiting, structured routes, error handling
+ * Production-ready: rate limiting, structured routes, error handling, UTF-8
  */
 const express    = require('express');
 const cors       = require('cors');
@@ -20,22 +20,40 @@ if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 // ── Core Middleware ───────────────────────────────────────────────────────────
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ strict: false }));
 app.use(express.urlencoded({ extended: true }));
 
-// ── UTF-8 Charset Middleware ──────────────────────────────────────────────────
-// Ensures all API JSON responses declare charset=utf-8 explicitly
-// This prevents ₹ from rendering as â‚¹ in some browsers/clients
-app.use((req, res, next) => {
+// ── Static files — BEFORE any route or charset middleware ─────────────────────
+// Express automatically sets correct Content-Type per file extension:
+//   .html → text/html; charset=UTF-8
+//   .css  → text/css; charset=UTF-8
+//   .js   → application/javascript; charset=UTF-8
+// DO NOT put a global Content-Type middleware before this — it breaks rendering.
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res, filePath) {
+    // Force UTF-8 charset on all text assets to prevent ₹ → â‚¹ mojibake
+    const ext = path.extname(filePath).toLowerCase();
+    const textTypes = {
+      '.html': 'text/html; charset=utf-8',
+      '.css':  'text/css; charset=utf-8',
+      '.js':   'application/javascript; charset=utf-8',
+      '.json': 'application/json; charset=utf-8',
+      '.map':  'application/json; charset=utf-8',
+    };
+    if (textTypes[ext]) res.setHeader('Content-Type', textTypes[ext]);
+  }
+}));
+app.use('/uploads', express.static(uploadsDir));
+
+// ── UTF-8 for API JSON responses ONLY ────────────────────────────────────────
+// Scoped to /api/* so it never touches HTML/CSS/JS file serving
+app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(uploadsDir));
-
 // ── Rate Limiting ─────────────────────────────────────────────────────────────
-// General API limit: 200 requests per 15 min per IP
+// General API: 300 requests per 15 min per IP
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
@@ -89,17 +107,19 @@ app.use('/api/ai',       require('./routes/ai'));
 // ── Config endpoint — expose safe public keys to frontend ─────────────────────
 app.get('/api/config', (req, res) => {
   res.json({
-    googleMapsApiKey:   process.env.GOOGLE_MAPS_API_KEY   || '',
-    razorpayKeyId:      process.env.RAZORPAY_KEY_ID       || '',
-    commissionRate:     parseFloat(process.env.COMMISSION_RATE) || 0.10,
-    aiEnabled:          !!(process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.includes('YOUR_')),
+    googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY   || '',
+    razorpayKeyId:    process.env.RAZORPAY_KEY_ID       || '',
+    commissionRate:   parseFloat(process.env.COMMISSION_RATE) || 0.10,
+    aiEnabled:        !!(process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.includes('YOUR_')),
   });
 });
 
-// ── SPA fallback ──────────────────────────────────────────────────────────────
-app.get('*', (req, res) =>
-  res.sendFile(path.join(__dirname, 'public', 'index.html'))
-);
+// ── SPA fallback — MUST be last ───────────────────────────────────────────────
+// All non-API, non-file routes return index.html so the SPA router handles them
+app.get('*', (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // ── Global Error Handler ─────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
