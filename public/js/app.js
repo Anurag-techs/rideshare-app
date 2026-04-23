@@ -99,7 +99,18 @@ const App = {
   initNav() {
     const toggle = document.getElementById('navToggle');
     const links = document.getElementById('navLinks');
-    toggle?.addEventListener('click', () => links?.classList.toggle('open'));
+    
+    toggle?.addEventListener('click', () => {
+      const isOpen = links?.classList.toggle('open');
+      document.body.style.overflow = isOpen ? 'hidden' : '';
+    });
+
+    document.querySelectorAll('.nav-link').forEach(link => {
+      link.addEventListener('click', () => {
+        links?.classList.remove('open');
+        document.body.style.overflow = '';
+      });
+    });
 
     // Close dropdown on outside click
     document.addEventListener('click', (e) => {

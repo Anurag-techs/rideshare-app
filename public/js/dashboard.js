@@ -50,7 +50,7 @@ const Dashboard = {
     const driverEl = document.getElementById('driverRides');
     if (driverEl) {
       if (!rides.length) {
-        driverEl.innerHTML = '<div class="empty-state"><div class="empty-icon">🚗</div><h3>No rides posted</h3><p><a href="#/create">Post your first ride!</a></p></div>';
+        driverEl.innerHTML = '<div class="empty-state"><div class="empty-icon">🚗</div><h3>No rides posted</h3><p><a href="#/create" class="btn btn-primary mt-3">Post your first ride!</a></p></div>';
       } else {
         driverEl.innerHTML = rides.map(r => {
           const date = new Date(r.departure_time);
@@ -82,7 +82,7 @@ const Dashboard = {
     const passEl = document.getElementById('passengerBookings');
     if (passEl) {
       if (!bookings.length) {
-        passEl.innerHTML = '<div class="empty-state"><div class="empty-icon">🎫</div><h3>No bookings yet</h3><p><a href="#/find">Find a ride!</a></p></div>';
+        passEl.innerHTML = '<div class="empty-state"><div class="empty-icon">🎫</div><h3>No bookings yet</h3><p><a href="#/find" class="btn btn-primary mt-3">Find a ride!</a></p></div>';
       } else {
         passEl.innerHTML = bookings.map(b => {
           const date = new Date(b.departure_time);
