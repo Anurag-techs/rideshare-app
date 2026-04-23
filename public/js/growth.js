@@ -105,15 +105,15 @@ const Growth = (() => {
       const list   = document.getElementById('notifList');
       if (!list) return;
       if (!notifs.length) {
-        list.innerHTML = '<div style="padding:16px;color:var(--text-muted);font-size:0.85rem;">No notifications yet.</div>';
+        list.innerHTML = '<div class="text-muted" style="padding:16px;font-size:0.85rem;">No notifications yet.</div>';
         return;
       }
       const typeIcon = { success: '✅', warning: '⚠️', error: '❌', info: 'ℹ️' };
       list.innerHTML = notifs.map(n => `
         <div style="padding:12px 16px;border-bottom:1px solid var(--border-color);${n.is_read ? 'opacity:0.6' : ''}">
           <div style="font-weight:600;font-size:0.85rem;">${typeIcon[n.type] || 'ℹ️'} ${n.title}</div>
-          <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:2px;">${n.message}</div>
-          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;">${new Date(n.created_at).toLocaleString('en-IN')}</div>
+          <div class="text-secondary" style="font-size:0.78rem;margin-top:2px;">${n.message}</div>
+          <div class="text-muted" style="font-size:0.7rem;margin-top:4px;">${new Date(n.created_at).toLocaleString('en-IN')}</div>
         </div>`).join('');
       // Mark all read
       API.post('/growth/notifications/read', {}).catch(() => {});

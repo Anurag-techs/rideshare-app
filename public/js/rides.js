@@ -210,16 +210,16 @@ const Rides = {
     const ratingStr   = r.driver_rating > 0 ? `⭐ ${r.driver_rating}` : '';
     
     // Social Proof & Conversion Triggers
-    const isVerified = (r.driver_completed_rides > 0 || r.driver_rating > 0) ? '<span style="color:var(--success);font-size:0.8rem;margin-left:4px;" title="Verified Driver">✓</span>' : '';
-    const urgency    = r.available_seats <= 3 ? `<span style="color:var(--warning);font-size:0.75rem;font-weight:600;margin-left:8px;">🔥 Only ${r.available_seats} left!</span>` : '';
-    const bookedText = r.booking_count > 0 ? `<div style="font-size:0.75rem;color:var(--success);margin-top:4px;">✨ Booked ${r.booking_count} time${r.booking_count>1?'s':''} today</div>` : '';
+    const isVerified = (r.driver_completed_rides > 0 || r.driver_rating > 0) ? '<span class="text-success" style="font-size:0.8rem;margin-left:4px;" title="Verified Driver">✓</span>' : '';
+    const urgency    = r.available_seats <= 3 ? `<span class="text-warning" style="font-size:0.75rem;font-weight:600;margin-left:8px;">🔥 Only ${r.available_seats} left!</span>` : '';
+    const bookedText = r.booking_count > 0 ? `<div class="text-success" style="font-size:0.75rem;margin-top:4px;">✨ Booked ${r.booking_count} time${r.booking_count>1?'s':''} today</div>` : '';
     
     // Price Comparison (Mock Cab Price = 2.5x to 3.5x)
     let comparisonHTML = '';
     if (r.price_per_seat > 0) {
       const cabPrice = Math.floor(r.price_per_seat * 3.2);
       const savings = cabPrice - r.price_per_seat;
-      comparisonHTML = `<div style="font-size:0.75rem;color:var(--text-muted);text-align:right;">Cab: <del>₹${cabPrice}</del> <span style="color:var(--success);font-weight:600;">(Save ₹${savings})</span></div>`;
+      comparisonHTML = `<div class="text-muted" style="font-size:0.75rem;text-align:right;">Cab: <del>₹${cabPrice}</del> <span class="text-success" style="font-weight:600;">(Save ₹${savings})</span></div>`;
     }
 
     return `
@@ -239,7 +239,7 @@ const Rides = {
             <div class="ride-driver-avatar">${r.driver_photo?`<img src="${r.driver_photo}" alt="">`:driverInit}</div>
             <div class="ride-driver-info">
               <div class="name">${this.esc(r.driver_name)}${isVerified}</div>
-              <div class="rating">${ratingStr} ${r.driver_completed_rides ? `<span style="font-size:0.75rem;color:var(--text-muted);">(${r.driver_completed_rides} rides)</span>` : ''}</div>
+              <div class="rating">${ratingStr} ${r.driver_completed_rides ? `<span class="text-muted" style="font-size:0.75rem;">(${r.driver_completed_rides} rides)</span>` : ''}</div>
             </div>
           </div>
           <div>
@@ -279,14 +279,14 @@ const Rides = {
               <div class="info-item"><div class="info-icon">💰</div><div class="info-label">Price/Seat</div><div class="info-value">${priceStr}</div></div>
               ${(r.car_name||r.car_model)?`<div class="info-item"><div class="info-icon">🚗</div><div class="info-label">Car</div><div class="info-value">${this.esc(r.car_name||r.car_model)}</div></div>`:''}
             </div>
-            ${r.notes?`<div style="padding:12px 16px;background:rgba(255,255,255,0.04);border-radius:8px;margin:16px 0;color:var(--text-secondary);font-size:0.9rem;">📝 ${this.esc(r.notes)}</div>`:''}
+            ${r.notes?`<div class="text-secondary" style="padding:12px 16px;background:rgba(255,255,255,0.04);border-radius:8px;margin:16px 0;font-size:0.9rem;">📝 ${this.esc(r.notes)}</div>`:''}
             ${(r.from_lat&&r.to_lat)?'<div id="detailMap" class="ride-detail-map"></div>':''}
             <div style="display:flex;align-items:center;gap:12px;padding:16px 0;border-top:1px solid var(--glass-border);margin-top:16px;">
               <div class="ride-driver-avatar" style="width:48px;height:48px;font-size:1.2rem;">${r.driver_photo?`<img src="${r.driver_photo}" alt="">`:r.driver_name?.charAt(0).toUpperCase()}</div>
               <div>
-                <div style="font-weight:600;">${this.esc(r.driver_name)} ${(r.driver_completed_rides > 0 || r.driver_rating > 0) ? '<span style="color:var(--success);" title="Verified Driver">✅ Verified</span>' : ''}</div>
-                <div style="font-size:0.85rem;color:var(--text-secondary);">${r.driver_rating>0?`⭐ ${r.driver_rating} (${r.driver_total_ratings} reviews)`:'New driver'} ${r.driver_completed_rides > 0 ? `• ${r.driver_completed_rides} rides completed` : ''}</div>
-                ${r.driver_phone?`<div style="font-size:0.85rem;color:var(--text-muted);">📞 ${r.driver_phone}</div>`:''}
+                <div style="font-weight:600;">${this.esc(r.driver_name)} ${(r.driver_completed_rides > 0 || r.driver_rating > 0) ? '<span class="text-success" title="Verified Driver">✅ Verified</span>' : ''}</div>
+                <div class="text-secondary" style="font-size:0.85rem;">${r.driver_rating>0?`⭐ ${r.driver_rating} (${r.driver_total_ratings} reviews)`:'New driver'} ${r.driver_completed_rides > 0 ? `• ${r.driver_completed_rides} rides completed` : ''}</div>
+                ${r.driver_phone?`<div class="text-muted" style="font-size:0.85rem;">📞 ${r.driver_phone}</div>`:''}
               </div>
             </div>
             <div class="ride-detail-actions">

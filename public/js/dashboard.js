@@ -65,7 +65,7 @@ const Dashboard = {
               </div>
               <div style="text-align:right;">
                 <span style="color:${statusColors[r.status]};font-weight:600;text-transform:capitalize;">${r.status}</span>
-                <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;">📅 ${dateStr} ðŸ• ${timeStr}</div>
+                <div class="text-secondary" style="font-size:0.85rem;margin-top:4px;">📅 ${dateStr} ðŸ• ${timeStr}</div>
               </div>
             </div>
             <div class="ride-meta" style="margin-top:12px;">
@@ -154,10 +154,10 @@ const Dashboard = {
             <div class="ride-meta" style="margin-top:12px;">
               <span>📅 ${dateStr}</span>
               <span>💰 Total: ₹${p.amount}</span>
-              <span style="color:var(--warning);">ðŸ¦ Fee: ₹${p.commission_amount||0}</span>
+              <span class="text-warning">ðŸ¦ Fee: ₹${p.commission_amount||0}</span>
               <span>💺 ${p.seats_booked} seat(s)</span>
             </div>
-            ${p.razorpay_payment_id ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;">ID: ${p.razorpay_payment_id}</div>` : ''}
+            ${p.razorpay_payment_id ? `<div class="text-muted" style="font-size:0.75rem;margin-top:6px;">ID: ${p.razorpay_payment_id}</div>` : ''}
           </div>`;
         }).join('');
       }
@@ -202,12 +202,12 @@ const Dashboard = {
             ${chart.map(c => {
               const pct = Math.round((c.earned / max) * 100);
               return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
-                <div style="font-size:0.62rem;color:var(--text-muted);">₹${c.earned.toFixed(0)}</div>
+                <div class="text-muted" style="font-size:0.62rem;">₹${c.earned.toFixed(0)}</div>
                 <div style="width:100%;background:var(--primary);border-radius:4px 4px 0 0;height:${Math.max(pct, 2)}%;opacity:0.85;transition:height .3s;"></div>
-                <div style="font-size:0.6rem;color:var(--text-muted);">W${c.week.split('-')[1]}</div>
+                <div class="text-muted" style="font-size:0.6rem;">W${c.week.split('-')[1]}</div>
               </div>`;
             }).join('')}
-          </div>` : '<div style="color:var(--text-muted);font-size:0.85rem;">No earnings data yet.</div>';
+          </div>` : '<div class="text-muted" style="font-size:0.85rem;">No earnings data yet.</div>';
       }
 
       // ── Withdrawals list ──────────────────────────────────────────────────
@@ -224,13 +224,13 @@ const Dashboard = {
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                 <div>
                   <div style="font-weight:700;font-size:1.05rem;">₹${w.amount.toFixed(2)}</div>
-                  ${w.upi_id ? `<div style="font-size:0.8rem;color:var(--text-muted);">UPI: ${Rides.esc(w.upi_id)}</div>` : ''}
-                  ${w.payment_method ? `<div style="font-size:0.78rem;color:var(--text-muted);">via ${w.payment_method} ${w.payment_ref ? '• ' + w.payment_ref : ''}</div>` : ''}
-                  <div style="font-size:0.78rem;color:var(--text-muted);">📅 ${date}</div>
+                  ${w.upi_id ? `<div class="text-muted" style="font-size:0.8rem;">UPI: ${Rides.esc(w.upi_id)}</div>` : ''}
+                  ${w.payment_method ? `<div class="text-muted" style="font-size:0.78rem;">via ${w.payment_method} ${w.payment_ref ? '• ' + w.payment_ref : ''}</div>` : ''}
+                  <div class="text-muted" style="font-size:0.78rem;">📅 ${date}</div>
                 </div>
                 <span class="seats-badge" style="color:${statusColor[w.status] || 'var(--text-secondary)'};">${w.status.toUpperCase()}</span>
               </div>
-              ${w.note ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:6px;">📝 ${Rides.esc(w.note)}</div>` : ''}
+              ${w.note ? `<div class="text-muted" style="font-size:0.78rem;margin-top:6px;">📝 ${Rides.esc(w.note)}</div>` : ''}
             </div>`;
           }).join('');
         }

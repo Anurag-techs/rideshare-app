@@ -1,6 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem("theme");
+      if (savedTheme) {
+        document.documentElement.setAttribute("data-theme", savedTheme);
+      } else {
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.setAttribute("data-theme", prefersDark ? "dark" : "light");
+      }
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="RideShare — India's smart carpooling platform with UPI payments, AI ride suggestions, and a trusted community.">
@@ -26,6 +37,7 @@
         <a href="#/dashboard" class="nav-link auth-only" data-page="dashboard">Dashboard</a>
       </div>
       <div class="nav-actions">
+        <button id="themeToggle" class="btn btn-ghost" style="padding: 6px; font-size: 1.2rem; border-radius: 50%;" aria-label="Toggle Theme"></button>
         <div class="nav-auth guest-only">
           <a href="#/login" class="btn btn-ghost" id="navLogin">Log In</a>
           <a href="#/signup" class="btn btn-primary btn-sm" id="navSignup">Sign Up</a>
@@ -109,12 +121,12 @@
       </div>
 
       <!-- Live Trust Stats -->
-      <div style="background:rgba(0,0,0,0.3);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,0.08);padding:14px 0;">
+      <div style="background:var(--bg-card);backdrop-filter:blur(10px);border-top:1px solid var(--glass-border);padding:14px 0;">
         <div class="container" style="display:flex;justify-content:space-around;flex-wrap:wrap;gap:12px;text-align:center;">
           <div><div id="liveTotalRides" style="font-size:1.35rem;font-weight:800;color:var(--primary);">—</div><div style="font-size:0.7rem;color:var(--text-muted);">RIDES POSTED</div></div>
           <div><div id="liveTotalBookings" style="font-size:1.35rem;font-weight:800;color:var(--success);">—</div><div style="font-size:0.7rem;color:var(--text-muted);">BOOKINGS</div></div>
           <div><div id="liveTotalUsers" style="font-size:1.35rem;font-weight:800;color:var(--warning);">—</div><div style="font-size:0.7rem;color:var(--text-muted);">MEMBERS</div></div>
-          <div><div id="liveDriverEarnings" style="font-size:1.35rem;font-weight:800;color:#a78bfa;">—</div><div style="font-size:0.7rem;color:var(--text-muted);">PAID TO DRIVERS</div></div>
+          <div><div id="liveDriverEarnings" style="font-size:1.35rem;font-weight:800;color:var(--primary-hover);">—</div><div style="font-size:0.7rem;color:var(--text-muted);">PAID TO DRIVERS</div></div>
         </div>
       </div>
 
@@ -131,7 +143,7 @@
       </div>
 
       <!-- vs Ola/Uber -->
-      <div style="padding:48px 0;background:rgba(0,0,0,0.2);">
+      <div style="padding:48px 0;background:var(--bg-card);">
         <div class="container">
           <h2 class="section-title" style="margin-bottom:8px;">Cheaper Than Any Cab App</h2>
           <p style="text-align:center;color:var(--text-secondary);margin-bottom:28px;">Real savings on popular routes</p>
@@ -139,14 +151,14 @@
             <table style="width:100%;border-collapse:collapse;font-size:0.88rem;max-width:600px;margin:0 auto;">
               <thead><tr style="border-bottom:2px solid var(--border-color);">
                 <th style="padding:10px;text-align:left;">Route</th>
-                <th style="padding:10px;text-align:center;color:#f87171;">Ola/Uber</th>
+                <th style="padding:10px;text-align:center;color:var(--error);">Ola/Uber</th>
                 <th style="padding:10px;text-align:center;color:var(--success);">RideShare</th>
                 <th style="padding:10px;text-align:center;color:var(--warning);">Save</th>
               </tr></thead>
               <tbody>
-                <tr style="border-bottom:1px solid var(--border-color);"><td style="padding:10px;">Mumbai → Pune</td><td style="padding:10px;text-align:center;color:#f87171;">₹2,200</td><td style="padding:10px;text-align:center;color:var(--success);font-weight:700;">₹650</td><td style="padding:10px;text-align:center;color:var(--warning);font-weight:700;">₹1,550 🎉</td></tr>
-                <tr style="border-bottom:1px solid var(--border-color);"><td style="padding:10px;">Delhi → Gurgaon</td><td style="padding:10px;text-align:center;color:#f87171;">₹450</td><td style="padding:10px;text-align:center;color:var(--success);font-weight:700;">₹120</td><td style="padding:10px;text-align:center;color:var(--warning);font-weight:700;">₹330 🎉</td></tr>
-                <tr><td style="padding:10px;">Bangalore → Mysore</td><td style="padding:10px;text-align:center;color:#f87171;">₹1,800</td><td style="padding:10px;text-align:center;color:var(--success);font-weight:700;">₹500</td><td style="padding:10px;text-align:center;color:var(--warning);font-weight:700;">₹1,300 🎉</td></tr>
+                <tr style="border-bottom:1px solid var(--border-color);"><td style="padding:10px;">Mumbai → Pune</td><td style="padding:10px;text-align:center;color:var(--error);">₹2,200</td><td style="padding:10px;text-align:center;color:var(--success);font-weight:700;">₹650</td><td style="padding:10px;text-align:center;color:var(--warning);font-weight:700;">₹1,550 🎉</td></tr>
+                <tr style="border-bottom:1px solid var(--border-color);"><td style="padding:10px;">Delhi → Gurgaon</td><td style="padding:10px;text-align:center;color:var(--error);">₹450</td><td style="padding:10px;text-align:center;color:var(--success);font-weight:700;">₹120</td><td style="padding:10px;text-align:center;color:var(--warning);font-weight:700;">₹330 🎉</td></tr>
+                <tr><td style="padding:10px;">Bangalore → Mysore</td><td style="padding:10px;text-align:center;color:var(--error);">₹1,800</td><td style="padding:10px;text-align:center;color:var(--success);font-weight:700;">₹500</td><td style="padding:10px;text-align:center;color:var(--warning);font-weight:700;">₹1,300 🎉</td></tr>
               </tbody>
             </table>
           </div>
@@ -166,7 +178,7 @@
               <p style="color:var(--text-secondary);">Find out how much you can earn sharing your empty seats.</p>
             </div>
             
-            <div style="background:rgba(0,0,0,0.3);border-radius:12px;padding:20px;margin-bottom:24px;border:1px solid var(--border-color);">
+            <div style="background:var(--bg-card);border-radius:12px;padding:20px;margin-bottom:24px;border:1px solid var(--border-color);">
               <div style="margin-bottom:20px;">
                 <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
                   <span style="font-size:0.9rem;font-weight:600;">Daily Commute Distance</span>
@@ -217,13 +229,13 @@
       </div>
 
       <!-- Testimonials -->
-      <div style="padding:48px 0;background:rgba(0,0,0,0.2);">
+      <div style="padding:48px 0;background:var(--bg-card);">
         <div class="container">
           <h2 class="section-title" style="margin-bottom:28px;">What Our Community Says</h2>
           <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px;">
-            <div class="glass-card" style="padding:18px;"><div style="color:#facc15;margin-bottom:6px;">★★★★★</div><p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:10px;">"Saved ₹1,200 on my Pune trip. The UPI payment was instant. Already told 10 friends!"</p><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;">R</div><div><div style="font-weight:600;font-size:0.8rem;">Rahul M.</div><div style="font-size:0.7rem;color:var(--text-muted);">Mumbai passenger</div></div></div></div>
-            <div class="glass-card" style="padding:18px;"><div style="color:#facc15;margin-bottom:6px;">★★★★★</div><p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:10px;">"Made ₹8,400 last month offering 2 seats on my daily commute. Best side hustle!"</p><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;">P</div><div><div style="font-weight:600;font-size:0.8rem;">Priya S.</div><div style="font-size:0.7rem;color:var(--text-muted);">Delhi driver</div></div></div></div>
-            <div class="glass-card" style="padding:18px;"><div style="color:#facc15;margin-bottom:6px;">★★★★☆</div><p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:10px;">"No Ola surge pricing nonsense. Booked in 2 mins, paid via GPay. Absolutely loved it."</p><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--warning);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;">A</div><div><div style="font-weight:600;font-size:0.8rem;">Aditya K.</div><div style="font-size:0.7rem;color:var(--text-muted);">Bangalore</div></div></div></div>
+            <div class="glass-card" style="padding:18px;"><div style="color:var(--warning);margin-bottom:6px;">★★★★★</div><p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:10px;">"Saved ₹1,200 on my Pune trip. The UPI payment was instant. Already told 10 friends!"</p><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;">R</div><div><div style="font-weight:600;font-size:0.8rem;">Rahul M.</div><div style="font-size:0.7rem;color:var(--text-muted);">Mumbai passenger</div></div></div></div>
+            <div class="glass-card" style="padding:18px;"><div style="color:var(--warning);margin-bottom:6px;">★★★★★</div><p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:10px;">"Made ₹8,400 last month offering 2 seats on my daily commute. Best side hustle!"</p><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;">P</div><div><div style="font-weight:600;font-size:0.8rem;">Priya S.</div><div style="font-size:0.7rem;color:var(--text-muted);">Delhi driver</div></div></div></div>
+            <div class="glass-card" style="padding:18px;"><div style="color:var(--warning);margin-bottom:6px;">★★★★☆</div><p style="color:var(--text-secondary);font-size:0.86rem;margin-bottom:10px;">"No Ola surge pricing nonsense. Booked in 2 mins, paid via GPay. Absolutely loved it."</p><div style="display:flex;align-items:center;gap:8px;"><div style="width:32px;height:32px;border-radius:50%;background:var(--warning);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;">A</div><div><div style="font-weight:600;font-size:0.8rem;">Aditya K.</div><div style="font-size:0.7rem;color:var(--text-muted);">Bangalore</div></div></div></div>
           </div>
         </div>
       </div>
@@ -242,7 +254,7 @@
     </section>
 
     <!-- ONBOARDING MODAL -->
-    <div id="onboardingModal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;">
+    <div id="onboardingModal" class="hidden" style="position:fixed;inset:0;background:var(--bg-card);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;">
       <div class="glass-card" style="max-width:440px;width:100%;padding:28px;text-align:center;">
         <div style="font-size:2.8rem;margin-bottom:10px;">🎉</div>
         <h2 style="margin-bottom:6px;">Welcome to RideShare!</h2>

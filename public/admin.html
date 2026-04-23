@@ -1,6 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem("theme");
+      if (savedTheme) {
+        document.documentElement.setAttribute("data-theme", savedTheme);
+      } else {
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        document.documentElement.setAttribute("data-theme", prefersDark ? "dark" : "light");
+      }
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RideShare Admin Panel</title>
@@ -25,6 +36,20 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
+      --bg:        #f8fafc;
+      --surface:   #ffffff;
+      --border:    rgba(0,0,0,0.08);
+      --primary:   #4f46e5;
+      --success:   #059669;
+      --warning:   #d97706;
+      --error:     #dc2626;
+      --text:      #0f172a;
+      --muted:     #64748b;
+      --radius:    12px;
+      --input-bg:  rgba(0,0,0,0.03);
+    }
+
+    [data-theme="dark"] {
       --bg:        #0f1117;
       --surface:   #1a1d27;
       --border:    rgba(255,255,255,0.08);
@@ -34,7 +59,11 @@
       --error:     #ef4444;
       --text:      #f1f5f9;
       --muted:     #64748b;
-      --radius:    12px;
+      --input-bg:  rgba(255,255,255,0.05);
+    }
+
+    body, .card, .login-card, .sidebar, .btn, input, select, textarea, button, .pill, table, th, td, tr {
+      transition: background 0.3s, color 0.3s, border-color 0.3s;
     }
 
     body {
@@ -147,7 +176,7 @@
     .btn-primary  { background: var(--primary); color: #fff; }
     .btn-success  { background: var(--success);  color: #fff; }
     .btn-danger   { background: var(--error);    color: #fff; }
-    .btn-ghost    { background: rgba(255,255,255,.07); color: var(--text); }
+    .btn-ghost    { background: var(--border); color: var(--text); }
     .btn-full     { width: 100%; }
     .btn-sm       { padding: 5px 12px; font-size: 0.78rem; }
 
@@ -156,7 +185,7 @@
     .form-group label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 6px; }
     .form-group input {
       width: 100%; padding: 10px 14px; border-radius: 8px;
-      border: 1px solid var(--border); background: rgba(255,255,255,.05);
+      border: 1px solid var(--border); background: var(--input-bg);
       color: var(--text); font-size: 0.9rem; outline: none;
       transition: border-color .15s;
     }
@@ -203,7 +232,10 @@
 <!-- ── App shell ── -->
 <div class="app" id="appShell" style="display:none;">
   <nav class="sidebar">
-    <div class="sidebar-logo">🚗 RideShare Admin</div>
+    <div class="sidebar-logo" style="display:flex; justify-content:space-between; align-items:center;">
+      <span>🚗 RideShare Admin</span>
+      <button id="themeToggle" style="background:none; border:none; cursor:pointer; font-size:1.2rem;"></button>
+    </div>
     <button class="nav-item active" data-page="withdrawals">💸 Withdrawals</button>
     <button class="nav-item" data-page="users">👥 Users</button>
     <button class="nav-item" data-page="growth">📈 Growth</button>
@@ -684,6 +716,24 @@ document.getElementById('toggleSurgeBtn').addEventListener('click', async () => 
     localStorage.removeItem('admin_token');
   }
 })();
+
+// ── Theme Toggle ─────────────────────────────────────────────────────────────
+const themeToggle = document.getElementById("themeToggle");
+const updateThemeIcon = () => {
+  const current = document.documentElement.getAttribute("data-theme");
+  themeToggle.textContent = current === "dark" ? "☀️" : "🌙";
+};
+updateThemeIcon();
+
+themeToggle.addEventListener("click", () => {
+  const currentTheme = document.documentElement.getAttribute("data-theme");
+  const newTheme = currentTheme === "dark" ? "light" : "dark";
+
+  document.documentElement.setAttribute("data-theme", newTheme);
+  localStorage.setItem("theme", newTheme);
+  updateThemeIcon();
+});
+
 </script>
 </body>
 </html>

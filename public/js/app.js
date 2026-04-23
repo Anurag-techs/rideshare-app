@@ -6,6 +6,7 @@ const App = {
     Cars.init();
     this.initRouter();
     this.initNav();
+    this.initThemeToggle();
     this.initRatingModal();
     this.updateNav();
     this.animateStats();
@@ -106,6 +107,27 @@ const App = {
     document.getElementById('userAvatar')?.addEventListener('click', (e) => {
       e.stopPropagation();
       document.getElementById('userDropdown')?.classList.toggle('show');
+    });
+  },
+
+  initThemeToggle() {
+    const toggle = document.getElementById("themeToggle");
+    if (!toggle) return;
+
+    const updateThemeIcon = () => {
+      const current = document.documentElement.getAttribute("data-theme");
+      toggle.textContent = current === "dark" ? "☀️" : "🌙";
+    };
+    updateThemeIcon();
+
+    toggle.addEventListener("click", () => {
+      const currentTheme = document.documentElement.getAttribute("data-theme");
+      const newTheme = currentTheme === "dark" ? "light" : "dark";
+
+      document.documentElement.setAttribute("data-theme", newTheme);
+      localStorage.setItem("theme", newTheme);
+
+      updateThemeIcon();
     });
   },
 
