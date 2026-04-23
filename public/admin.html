@@ -369,16 +369,8 @@ function fmt(dateStr) {
 
 function esc(s) {
   if (!s) return '';
-  function fixEncoding(text) {
-    try {
-      return decodeURIComponent(escape(text));
-    } catch {
-      return text;
-    }
-  }
-  const fixed = fixEncoding(s);
   const d = document.createElement('div');
-  d.textContent = fixed;
+  d.textContent = s;
   return d.innerHTML;
 }
 

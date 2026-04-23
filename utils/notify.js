@@ -13,12 +13,17 @@ const { prepare } = require('../db/init');
  * @param {string|null} refType  e.g. 'booking', 'withdrawal'
  * @param {number|null} refId
  */
+function cleanInput(text) {
+  if (!text) return text;
+  return String(text).replace(/[^\x00-\x7F]/g, "");
+}
+
 function notify(userId, title, message, type = 'info', refType = null, refId = null) {
   try {
     prepare(
       `INSERT INTO notifications (user_id, title, message, type, ref_type, ref_id)
        VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(userId, title, message, type, refType, refId);
+    ).run(userId, cleanInput(title), cleanInput(message), type, refType, refId);
   } catch (err) {
     // Never let notification failure break a transaction
     console.error('[notify] Failed to create notification:', err.message);

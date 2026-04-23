@@ -10,9 +10,8 @@ const Growth = (() => {
   function track(event, meta = {}) {
     try {
       const user = API.getUser?.();
-      fetch('/api/analytics/event', {
+      apiFetch('/api/analytics/event', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event, user_id: user?.id || null, meta }),
       }).catch(() => {});
     } catch (_) {}
@@ -125,7 +124,7 @@ const Growth = (() => {
   // ── Public platform stats (live counters) ─────────────────────────────────
   async function loadPlatformStats() {
     try {
-      const data = await fetch('/api/analytics/platform-stats').then(r => r.json());
+      const data = await apiFetch('/api/analytics/platform-stats').then(r => r.json());
       const set  = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
       if (data.success) {
         set('liveTotalUsers',    data.total_users.toLocaleString('en-IN'));
@@ -139,7 +138,7 @@ const Growth = (() => {
   // ── Real-time Activity Feed ───────────────────────────────────────────────
   async function loadActivityFeed() {
     try {
-      const data = await fetch('/api/analytics/feed').then(r => r.json());
+      const data = await apiFetch('/api/analytics/feed').then(r => r.json());
       if (data.success && data.feed && data.feed.length > 0) {
         let i = 0;
         setInterval(() => {

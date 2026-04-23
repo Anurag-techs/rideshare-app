@@ -3,9 +3,19 @@ const { prepare } = require('../db/init');
 const { authRequired, authOptional } = require('../middleware/auth');
 const router = express.Router();
 
+function cleanInput(text) {
+  if (!text) return text;
+  return String(text).replace(/[^\x00-\x7F]/g, "");
+}
+
 router.post('/', authRequired, (req, res) => {
   try {
-    const { car_name, from_location, to_location, from_lat, from_lng, to_lat, to_lng, departure_time, total_seats, available_seats, price_per_seat, notes } = req.body;
+    let { car_name, from_location, to_location, from_lat, from_lng, to_lat, to_lng, departure_time, total_seats, available_seats, price_per_seat, notes } = req.body;
+    car_name = cleanInput(car_name);
+    from_location = cleanInput(from_location);
+    to_location = cleanInput(to_location);
+    notes = cleanInput(notes);
+
     if (!from_location || !to_location || !departure_time) return res.status(400).json({ error: 'From, to, and departure time are required.' });
     const seats = total_seats || 4;
     const result = prepare('INSERT INTO rides (driver_id, car_name, from_location, to_location, from_lat, from_lng, to_lat, to_lng, departure_time, total_seats, available_seats, price_per_seat, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(

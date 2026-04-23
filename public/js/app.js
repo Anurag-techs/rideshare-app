@@ -31,10 +31,13 @@ const App = {
 
     // Auth guards
     const authPages = ['create', 'dashboard', 'profile', 'cars'];
-    if (authPages.includes(page) && !API.isLoggedIn()) {
-      this.showToast('Please log in first', 'error');
-      window.location.hash = '#/login';
-      return;
+    if (authPages.includes(page)) {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        this.showToast('Please log in first', 'error');
+        window.location.hash = '#/login';
+        return;
+      }
     }
     // Redirect if logged in
     if (['login', 'signup'].includes(page) && API.isLoggedIn()) {

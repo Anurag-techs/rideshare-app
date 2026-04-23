@@ -1,12 +1,12 @@
 // API helper module
 const API = {
   base: '/api',
-  getToken()   { return localStorage.getItem('rs_token'); },
-  setToken(t)  { localStorage.setItem('rs_token', t); },
-  removeToken(){ localStorage.removeItem('rs_token'); },
-  getUser()    { try { const u = localStorage.getItem('rs_user'); return u ? JSON.parse(u) : null; } catch { return null; } },
-  setUser(u)   { localStorage.setItem('rs_user', JSON.stringify(u)); },
-  removeUser() { localStorage.removeItem('rs_user'); },
+  getToken()   { return localStorage.getItem('token'); },
+  setToken(t)  { localStorage.setItem('token', t); },
+  removeToken(){ localStorage.removeItem('token'); },
+  getUser()    { try { const u = localStorage.getItem('user'); return u ? JSON.parse(u) : null; } catch { return null; } },
+  setUser(u)   { localStorage.setItem('user', JSON.stringify(u)); },
+  removeUser() { localStorage.removeItem('user'); },
   isLoggedIn() { return !!this.getToken(); },
 
   // Clear session and redirect to login
@@ -74,4 +74,16 @@ const API = {
   put(endpoint, body)        { return this.request(endpoint, { method: 'PUT',    body: JSON.stringify(body) }); },
   delete(endpoint)           { return this.request(endpoint, { method: 'DELETE' }); },
   upload(endpoint, formData) { return this.request(endpoint, { method: 'POST', body: formData }); },
+};
+
+window.apiFetch = async (url, options = {}) => {
+  const token = localStorage.getItem('token');
+  return fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: token ? 'Bearer ' + token : '',
+      ...(options.headers || {})
+    }
+  });
 };

@@ -9,6 +9,11 @@ const { notify } = require('../utils/notify');
 
 const router = express.Router();
 
+function cleanInput(text) {
+  if (!text) return text;
+  return String(text).replace(/[^\x00-\x7F]/g, "");
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
   filename: (req, file, cb) => cb(null, `profile_${req.user.id}_${Date.now()}${path.extname(file.originalname)}`)
@@ -17,7 +22,9 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilt
 
 router.post('/signup', async (req, res) => {
   try {
-    const { name, email, phone, password } = req.body;
+    let { name, email, phone, password } = req.body;
+    name = cleanInput(name);
+    phone = cleanInput(phone);
 
     if (!name || !email || !password) return res.status(400).json({ error: 'Name, email, and password are required.' });
     if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters.' });
@@ -75,7 +82,7 @@ router.get('/me', authRequired, (req, res) => {
 
     if (!user) {
       console.error('[AUTH /me] No user found in DB for id:', userId);
-      return res.status(404).json({ error: `User not found (id=${userId}). Please log in again.` });
+      return res.status(401).json({ error: `User not found (id=${userId}). Please log in again.` });
     }
 
     console.log('[AUTH /me] Returning user:', user.id, user.email);
@@ -89,7 +96,9 @@ router.get('/me', authRequired, (req, res) => {
 
 router.put('/profile', authRequired, (req, res) => {
   try {
-    const { name, phone, email } = req.body;
+    let { name, phone, email } = req.body;
+    name = cleanInput(name);
+    phone = cleanInput(phone);
     if (email) { const ex = prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, req.user.id); if (ex) return res.status(409).json({ error: 'Email already in use.' }); }
     if (name) prepare('UPDATE users SET name = ? WHERE id = ?').run(name, req.user.id);
     if (phone) prepare('UPDATE users SET phone = ? WHERE id = ?').run(phone, req.user.id);
