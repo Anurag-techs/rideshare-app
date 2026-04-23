@@ -321,10 +321,10 @@ router.post('/verify', authRequired, (req, res) => {
     console.log(`[VERIFY] ✅ Booking #${bookingId} | ride=${rideId} | user=${userId} | ₹${totalAmount}`);
 
     // Notifications
-    notify(userId, '🎉 Booking Confirmed!',
+    notify(userId, 'Booking Confirmed!',
       `Your booking for ${ride.from_location} → ${ride.to_location} is confirmed. Paid: ₹${totalAmount}.`,
       'success', 'booking', bookingId);
-    notify(ride.driver_id, '💰 New Booking & Earning',
+    notify(ride.driver_id, 'New Booking & Earning',
       `A passenger booked ${seatCount} seat(s) on your ride. You earned: ₹${driverEarning.toFixed(2)}.`,
       'success', 'booking', bookingId);
 

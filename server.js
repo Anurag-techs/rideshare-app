@@ -148,7 +148,7 @@ async function start() {
           
           const stmt = prepare(`INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)`);
           usersToNotify.forEach(u => {
-            stmt.run(u.id, '🚗 New rides near you!', 'Drivers have posted new rides on your frequent routes. Check them out before seats run out.', 'info');
+            stmt.run(u.id, 'New rides near you!', 'Drivers have posted new rides on your frequent routes. Check them out before seats run out.', 'info');
           });
           if (usersToNotify.length > 0) {
             console.log(`[CRON] Sent retention notification to ${usersToNotify.length} inactive users.`);

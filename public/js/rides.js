@@ -610,8 +610,16 @@ const Rides = {
 
   esc(str) {
     if (!str) return '';
+    function fixEncoding(text) {
+      try {
+        return decodeURIComponent(escape(text));
+      } catch {
+        return text;
+      }
+    }
+    const fixed = fixEncoding(str);
     const d = document.createElement('div');
-    d.textContent = str;
+    d.textContent = fixed;
     return d.innerHTML;
   }
 };

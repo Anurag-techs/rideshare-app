@@ -177,7 +177,7 @@ router.post('/withdraw', authRequired, (req, res) => {
 
     notify(
       userId,
-      '💸 Withdrawal Requested',
+      'Withdrawal Requested',
       `₹${amount.toFixed(2)} withdrawal submitted (fee: ₹${fee}). Net payout: ₹${netPayout}. Processing 2–3 business days.`,
       'info', 'withdrawal', wdId
     );
