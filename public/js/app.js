@@ -10,6 +10,9 @@ const App = {
     this.initRatingModal();
     this.updateNav();
     this.animateStats();
+    if (window.lucide) {
+      lucide.createIcons();
+    }
     // Growth: load notification bell if logged in
     if (API.isLoggedIn()) Growth.loadNotifBell();
     // Growth: load real platform stats on landing
@@ -86,6 +89,10 @@ const App = {
 
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    if (window.lucide) {
+      setTimeout(() => lucide.createIcons(), 50);
+    }
   },
 
   // --- Navigation ---

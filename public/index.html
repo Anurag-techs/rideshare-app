@@ -3,13 +3,8 @@
 <head>
   <script>
     (function() {
-      const savedTheme = localStorage.getItem("theme");
-      if (savedTheme) {
-        document.documentElement.setAttribute("data-theme", savedTheme);
-      } else {
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        document.documentElement.setAttribute("data-theme", prefersDark ? "dark" : "light");
-      }
+      const savedTheme = localStorage.getItem("theme") || "light";
+      document.documentElement.setAttribute("data-theme", savedTheme);
     })();
   </script>
   <meta charset="UTF-8">
@@ -19,6 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
@@ -27,7 +23,7 @@
   <nav class="navbar" id="navbar">
     <div class="nav-container">
       <a href="#/" class="nav-logo">
-        <span class="logo-icon">🚗</span>
+        <span class="logo-icon"><i data-lucide="car-front" style="color: var(--primary);"></i></span>
         <span class="logo-text">Ride<span class="logo-accent">Share</span></span>
       </a>
       <div class="nav-links" id="navLinks">
@@ -86,22 +82,39 @@
       <div class="hero">
         <div class="hero-bg"></div>
         <div class="hero-content">
-          <div class="hero-badge">🌍 Eco-Friendly Travel</div>
+          <div class="hero-badge"><i data-lucide="leaf" style="width: 14px; height: 14px; margin-right: 4px; color: var(--success);"></i> Eco-Friendly Travel</div>
           <h1 class="hero-title">Share the Ride,<br><span class="gradient-text">Share the Journey</span></h1>
           <p class="hero-subtitle">Connect with fellow travelers heading your way. Pay with UPI, GPay, or PhonePe. Save money, reduce emissions.</p>
           <div class="hero-actions">
-            <a href="#/find" class="btn btn-primary btn-lg">
-              <span>🔍</span> Find a Ride
+            <a href="#/find" class="btn btn-primary btn-lg hero-cta">
+              <i data-lucide="search" style="width: 20px; height: 20px; margin-right: 8px;"></i> Find a Ride
             </a>
             <a href="#/create" class="btn btn-outline btn-lg">
-              <span>➕</span> Offer a Ride
+              <i data-lucide="plus-circle" style="width: 20px; height: 20px; margin-right: 8px;"></i> Offer a Ride
             </a>
           </div>
-          <div class="hero-payment-badges">
-            <span class="pay-badge">📱 UPI</span>
-            <span class="pay-badge">G Pay</span>
-            <span class="pay-badge">PhonePe</span>
-            <span class="pay-badge">Paytm</span>
+
+          <div class="hero-trust">
+            <div class="trust-item"><i data-lucide="star" class="text-warning"></i> 4.8 Rating</div>
+            <div class="trust-item"><i data-lucide="users" class="text-primary"></i> 10,000+ Users</div>
+            <div class="trust-item"><i data-lucide="shield-check" class="text-success"></i> Safe & Verified</div>
+          </div>
+
+          <!-- Live Ride Preview Card -->
+          <div class="hero-ride-preview">
+            <div class="preview-header">
+              <span class="preview-badge">Live Ride</span>
+              <span class="preview-price">₹120</span>
+            </div>
+            <div class="preview-route">
+              <div class="route-point"><i data-lucide="map-pin"></i> Noida</div>
+              <div class="route-line"><i data-lucide="arrow-right"></i></div>
+              <div class="route-point"><i data-lucide="map-pin"></i> Delhi</div>
+            </div>
+            <div class="preview-footer">
+              <div><i data-lucide="clock"></i> 9:00 AM</div>
+              <div><i data-lucide="users"></i> 2 seats left</div>
+            </div>
           </div>
           <div class="hero-stats">
             <div class="stat-item">
@@ -134,10 +147,10 @@
         <div class="container">
           <h2 class="section-title">How It Works</h2>
           <div class="features-grid">
-            <div class="feature-card"><div class="feature-icon">📝</div><h3>1. Create Account</h3><p>Sign up in 30 seconds to start booking rides.</p></div>
-            <div class="feature-card"><div class="feature-icon">🗺️</div><h3>2. Find or Post</h3><p>Search rides on your route or offer empty seats and earn while you drive.</p></div>
-            <div class="feature-card"><div class="feature-icon">💳</div><h3>3. Pay with UPI</h3><p>Book instantly via GPay, PhonePe, Paytm. 100% secure Razorpay gateway.</p></div>
-            <div class="feature-card"><div class="feature-icon">💰</div><h3>Earn as Driver</h3><p>Drivers earn <strong>₹500–₹2000/day</strong> offering seats on routes they already drive.</p></div>
+            <div class="feature-card"><div class="feature-icon"><i data-lucide="user-plus" style="width: 32px; height: 32px; color: var(--primary);"></i></div><h3>1. Create Account</h3><p>Sign up in 30 seconds to start booking rides.</p></div>
+            <div class="feature-card"><div class="feature-icon"><i data-lucide="map" style="width: 32px; height: 32px; color: var(--primary);"></i></div><h3>2. Find or Post</h3><p>Search rides on your route or offer empty seats and earn while you drive.</p></div>
+            <div class="feature-card"><div class="feature-icon"><i data-lucide="credit-card" style="width: 32px; height: 32px; color: var(--primary);"></i></div><h3>3. Pay with UPI</h3><p>Book instantly via GPay, PhonePe, Paytm. 100% secure Razorpay gateway.</p></div>
+            <div class="feature-card"><div class="feature-icon"><i data-lucide="banknote" style="width: 32px; height: 32px; color: var(--primary);"></i></div><h3>Earn as Driver</h3><p>Drivers earn <strong>₹500–₹2000/day</strong> offering seats on routes they already drive.</p></div>
           </div>
         </div>
       </div>
@@ -783,10 +796,10 @@
         <div id="upiSection" class="hidden">
           <div class="upi-label">Pay securely with</div>
           <div class="upi-badges">
-            <span class="upi-badge">📱 GPay</span>
-            <span class="upi-badge">📲 PhonePe</span>
-            <span class="upi-badge">💼 Paytm</span>
-            <span class="upi-badge">🏦 UPI</span>
+            <span class="upi-badge"><i data-lucide="smartphone" style="width: 14px; height: 14px; margin-right: 4px; vertical-align: text-bottom;"></i> UPI</span>
+            <span class="upi-badge">G Pay</span>
+            <span class="upi-badge">PhonePe</span>
+            <span class="upi-badge">Paytm</span>
           </div>
           <div class="upi-note">Razorpay checkout will open — choose your preferred UPI app</div>
         </div>
