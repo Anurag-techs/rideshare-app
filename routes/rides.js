@@ -2,30 +2,31 @@
  * routes/rides.js — Ride management routes (MongoDB)
  */
 const express = require('express');
+const { body, query } = require('express-validator');
 const Ride    = require('../models/Ride');
 const Booking = require('../models/Booking');
 const { authRequired, authOptional } = require('../middleware/auth');
+const validate = require('../middleware/validate');
 
 const router = express.Router();
 
-function cleanInput(text) {
-  if (!text) return text;
-  return String(text).replace(/[^\x00-\x7F]/g, '');
-}
-
 // ── POST /api/rides ───────────────────────────────────────────────────────────
-router.post('/', authRequired, async (req, res) => {
+router.post('/', authRequired, validate([
+  body('from_location').trim().notEmpty().withMessage('From location is required').escape(),
+  body('to_location').trim().notEmpty().withMessage('To location is required').escape(),
+  body('departure_time').isISO8601().withMessage('Valid departure time is required').toDate(),
+  body('car_name').optional({ nullable: true }).trim().escape(),
+  body('notes').optional({ nullable: true }).trim().escape(),
+  body('total_seats').optional().isInt({ min: 1, max: 8 }).toInt(),
+  body('price_per_seat').optional().isFloat({ min: 0 }).toFloat(),
+  body('from_lat').optional({ nullable: true }).isFloat().toFloat(),
+  body('from_lng').optional({ nullable: true }).isFloat().toFloat(),
+  body('to_lat').optional({ nullable: true }).isFloat().toFloat(),
+  body('to_lng').optional({ nullable: true }).isFloat().toFloat()
+]), async (req, res, next) => {
   try {
-    let { car_name, from_location, to_location, from_lat, from_lng, to_lat, to_lng,
+    const { car_name, from_location, to_location, from_lat, from_lng, to_lat, to_lng,
           departure_time, total_seats, available_seats, price_per_seat, notes } = req.body;
-
-    car_name      = cleanInput(car_name);
-    from_location = cleanInput(from_location);
-    to_location   = cleanInput(to_location);
-    notes         = cleanInput(notes);
-
-    if (!from_location || !to_location || !departure_time)
-      return res.status(400).json({ error: 'From, to, and departure time are required.' });
 
     const seats = total_seats || 4;
     const ride  = await Ride.create({
@@ -53,39 +54,45 @@ router.post('/', authRequired, async (req, res) => {
 
     res.status(201).json({ ride: r });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error.' });
+    next(err);
   }
 });
 
 // ── GET /api/rides/search ─────────────────────────────────────────────────────
-router.get('/search', authOptional, async (req, res) => {
+router.get('/search', authOptional, validate([
+  query('from').optional().trim().escape(),
+  query('to').optional().trim().escape(),
+  query('date').optional().isISO8601().toDate(),
+  query('max_price').optional().isFloat({ min: 0 }).toFloat(),
+  query('sort').optional().isIn(['price_asc', 'price_desc', 'time_desc']).escape()
+]), async (req, res, next) => {
   try {
     const { from, to, date, max_price, sort } = req.query;
-    const query = { status: 'active', available_seats: { $gt: 0 } };
+    const q = { status: 'active', available_seats: { $gt: 0 } };
 
-    if (from) query.from_location = { $regex: from, $options: 'i' };
-    if (to)   query.to_location   = { $regex: to,   $options: 'i' };
+    if (from) q.from_location = { $regex: from, $options: 'i' };
+    if (to)   q.to_location   = { $regex: to,   $options: 'i' };
     if (date) {
       const start = new Date(date); start.setHours(0,0,0,0);
       const end   = new Date(date); end.setHours(23,59,59,999);
-      query.departure_time = { $gte: start, $lte: end };
+      q.departure_time = { $gte: start, $lte: end };
     }
-    if (max_price) query.price_per_seat = { $lte: parseFloat(max_price) };
+    if (max_price) q.price_per_seat = { $lte: max_price };
 
     let sortObj = { departure_time: 1 };
     if (sort === 'price_asc')  sortObj = { price_per_seat: 1 };
     if (sort === 'price_desc') sortObj = { price_per_seat: -1 };
     if (sort === 'time_desc')  sortObj = { departure_time: -1 };
 
-    const rides = await Ride.find(query)
+    const rides = await Ride.find(q)
       .populate('driver_id', 'name profile_photo avg_rating total_ratings')
       .populate('car_id', 'model color')
       .sort(sortObj)
-      .limit(50);
+      .limit(50)
+      .lean();
 
     const result = await Promise.all(rides.map(async r => {
-      const obj = r.toObject();
+      const obj = { ...r };
       obj.id             = obj._id;
       obj.driver_name    = obj.driver_id?.name;
       obj.driver_photo   = obj.driver_id?.profile_photo;
@@ -101,20 +108,20 @@ router.get('/search', authOptional, async (req, res) => {
 
     res.json({ rides: result });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error.' });
+    next(err);
   }
 });
 
 // ── GET /api/rides/my/driver ──────────────────────────────────────────────────
-router.get('/my/driver', authRequired, async (req, res) => {
+router.get('/my/driver', authRequired, async (req, res, next) => {
   try {
     const rides = await Ride.find({ driver_id: req.user.id })
       .populate('car_id', 'model color')
-      .sort({ departure_time: -1 });
+      .sort({ departure_time: -1 })
+      .lean();
 
     const result = await Promise.all(rides.map(async r => {
-      const obj = r.toObject();
+      const obj = { ...r };
       obj.id          = obj._id;
       obj.car_model   = obj.car_id?.model;
       obj.car_color   = obj.car_id?.color;
@@ -124,21 +131,25 @@ router.get('/my/driver', authRequired, async (req, res) => {
 
     res.json({ rides: result });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error.' });
+    next(err);
   }
 });
 
 // ── GET /api/rides/:id ────────────────────────────────────────────────────────
-router.get('/:id', authOptional, async (req, res) => {
+router.get('/:id', authOptional, async (req, res, next) => {
   try {
     const ride = await Ride.findById(req.params.id)
       .populate('driver_id', 'name email phone profile_photo avg_rating total_ratings')
-      .populate('car_id', 'model color license_plate car_image');
+      .populate('car_id', 'model color license_plate car_image')
+      .lean();
 
-    if (!ride) return res.status(404).json({ error: 'Ride not found.' });
+    if (!ride) {
+      const err = new Error('Ride not found.');
+      err.statusCode = 404;
+      return next(err);
+    }
 
-    const obj = ride.toObject();
+    const obj = { ...ride };
     obj.id                   = obj._id;
     obj.driver_name          = obj.driver_id?.name;
     obj.driver_email         = obj.driver_id?.email;
@@ -154,10 +165,11 @@ router.get('/:id', authOptional, async (req, res) => {
     obj.driver_completed_rides = await Ride.countDocuments({ driver_id: ride.driver_id, status: 'completed' });
 
     const bookings = await Booking.find({ ride_id: ride._id, status: { $ne: 'cancelled' } })
-      .populate('passenger_id', 'name profile_photo');
+      .populate('passenger_id', 'name profile_photo')
+      .lean();
 
     const formattedBookings = bookings.map(b => {
-      const bo = b.toObject();
+      const bo = { ...b };
       bo.id              = bo._id;
       bo.passenger_name  = bo.passenger_id?.name;
       bo.passenger_photo = bo.passenger_id?.profile_photo;
@@ -166,23 +178,26 @@ router.get('/:id', authOptional, async (req, res) => {
 
     res.json({ ride: obj, bookings: formattedBookings });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error.' });
+    next(err);
   }
 });
 
 // ── DELETE /api/rides/:id ─────────────────────────────────────────────────────
-router.delete('/:id', authRequired, async (req, res) => {
+router.delete('/:id', authRequired, async (req, res, next) => {
   try {
     const ride = await Ride.findOne({ _id: req.params.id, driver_id: req.user.id });
-    if (!ride) return res.status(404).json({ error: 'Ride not found.' });
+    if (!ride) {
+      const err = new Error('Ride not found.');
+      err.statusCode = 404;
+      return next(err);
+    }
 
     await Ride.findByIdAndUpdate(req.params.id, { status: 'cancelled' });
     await Booking.updateMany({ ride_id: req.params.id }, { status: 'cancelled' });
 
     res.json({ message: 'Ride cancelled.' });
   } catch (err) {
-    res.status(500).json({ error: 'Server error.' });
+    next(err);
   }
 });
 

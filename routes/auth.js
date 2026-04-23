@@ -5,8 +5,10 @@ const express  = require('express');
 const bcrypt   = require('bcryptjs');
 const multer   = require('multer');
 const path     = require('path');
+const { body } = require('express-validator');
 const User     = require('../models/User');
 const { authRequired, generateToken } = require('../middleware/auth');
+const validate   = require('../middleware/validate');
 const { notify } = require('../utils/notify');
 
 const router = express.Router();
@@ -30,23 +32,24 @@ const upload = multer({
 });
 
 // ── POST /api/auth/signup ─────────────────────────────────────────────────────
-router.post('/signup', async (req, res) => {
+router.post('/signup', validate([
+  body('name').trim().notEmpty().withMessage('Name is required').escape(),
+  body('email').trim().isEmail().withMessage('Valid email is required').normalizeEmail(),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('phone').optional().trim().escape()
+]), async (req, res, next) => {
   try {
     let { name, email, phone, password } = req.body;
-    name  = cleanInput(name);
-    phone = cleanInput(phone);
 
-    if (!name || !email || !password)
-      return res.status(400).json({ error: 'Name, email, and password are required.' });
-    if (password.length < 6)
-      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
-
-    const existing = await User.findOne({ email: email.toLowerCase() });
-    if (existing)
-      return res.status(409).json({ error: 'An account with this email already exists.' });
+    const existing = await User.findOne({ email });
+    if (existing) {
+      const err = new Error('An account with this email already exists.');
+      err.statusCode = 409;
+      return next(err);
+    }
 
     const password_hash = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email: email.toLowerCase(), phone: phone || null, password_hash });
+    const user = await User.create({ name, email, phone: phone || null, password_hash });
 
     await notify(user._id, '🎉 Welcome to RideShare!', `Hi ${name}! Your account is ready.`, 'success');
 
@@ -54,82 +57,99 @@ router.post('/signup', async (req, res) => {
     const safeUser = { id: user._id, name: user.name, email: user.email, phone: user.phone, profile_photo: user.profile_photo, avg_rating: user.avg_rating, total_ratings: user.total_ratings, created_at: user.created_at };
     res.status(201).json({ token, user: safeUser });
   } catch (err) {
-    console.error('Signup error:', err);
-    res.status(500).json({ error: 'Server error during signup.' });
+    next(err);
   }
 });
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
-router.post('/login', async (req, res) => {
+router.post('/login', validate([
+  body('email').trim().isEmail().withMessage('Valid email is required').normalizeEmail(),
+  body('password').notEmpty().withMessage('Password is required')
+]), async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password)
-      return res.status(400).json({ error: 'Email and password are required.' });
 
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user)
-      return res.status(401).json({ error: 'Invalid email or password.' });
+    const user = await User.findOne({ email });
+    if (!user) {
+      const err = new Error('Invalid email or password.');
+      err.statusCode = 401;
+      return next(err);
+    }
 
     const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid)
-      return res.status(401).json({ error: 'Invalid email or password.' });
+    if (!valid) {
+      const err = new Error('Invalid email or password.');
+      err.statusCode = 401;
+      return next(err);
+    }
 
     const token = generateToken(user);
     const safeUser = { id: user._id, name: user.name, email: user.email, phone: user.phone, profile_photo: user.profile_photo, avg_rating: user.avg_rating, total_ratings: user.total_ratings, wallet_balance: user.wallet_balance, is_admin: user.is_admin, created_at: user.created_at };
     res.json({ token, user: safeUser });
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: 'Server error during login.' });
+    next(err);
   }
 });
 
 // ── GET /api/auth/me ──────────────────────────────────────────────────────────
-router.get('/me', authRequired, async (req, res) => {
+router.get('/me', authRequired, async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id).select('-password_hash');
-    if (!user)
-      return res.status(401).json({ error: 'User not found. Please log in again.' });
+    if (!user) {
+      const err = new Error('User not found. Please log in again.');
+      err.statusCode = 401;
+      return next(err);
+    }
 
     res.json({ user: { ...user.toObject(), id: user._id } });
   } catch (err) {
-    console.error('[AUTH /me] Server error:', err);
-    res.status(500).json({ error: 'Server error fetching user.' });
+    next(err);
   }
 });
 
 // ── PUT /api/auth/profile ─────────────────────────────────────────────────────
-router.put('/profile', authRequired, async (req, res) => {
+router.put('/profile', authRequired, validate([
+  body('name').optional().trim().notEmpty().escape(),
+  body('phone').optional().trim().escape(),
+  body('email').optional().trim().isEmail().normalizeEmail()
+]), async (req, res, next) => {
   try {
-    let { name, phone, email } = req.body;
-    name  = cleanInput(name);
-    phone = cleanInput(phone);
+    const { name, phone, email } = req.body;
 
     if (email) {
-      const ex = await User.findOne({ email: email.toLowerCase(), _id: { $ne: req.user.id } });
-      if (ex) return res.status(409).json({ error: 'Email already in use.' });
+      const ex = await User.findOne({ email, _id: { $ne: req.user.id } });
+      if (ex) {
+        const err = new Error('Email already in use.');
+        err.statusCode = 409;
+        return next(err);
+      }
     }
 
     const updates = {};
     if (name)  updates.name  = name;
     if (phone) updates.phone = phone;
-    if (email) updates.email = email.toLowerCase();
+    if (email) updates.email = email;
 
-    const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true }).select('-password_hash');
+    const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true, runValidators: true }).select('-password_hash');
     res.json({ user: { ...user.toObject(), id: user._id } });
   } catch (err) {
-    res.status(500).json({ error: 'Server error.' });
+    next(err);
   }
 });
 
 // ── POST /api/auth/upload-photo ───────────────────────────────────────────────
-router.post('/upload-photo', authRequired, upload.single('photo'), async (req, res) => {
+router.post('/upload-photo', authRequired, upload.single('photo'), async (req, res, next) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No photo uploaded.' });
+    if (!req.file) {
+      const err = new Error('No photo uploaded.');
+      err.statusCode = 400;
+      return next(err);
+    }
     const photoPath = `/uploads/${req.file.filename}`;
     await User.findByIdAndUpdate(req.user.id, { profile_photo: photoPath });
     res.json({ profile_photo: photoPath });
   } catch (err) {
-    res.status(500).json({ error: 'Server error.' });
+    next(err);
   }
 });
 

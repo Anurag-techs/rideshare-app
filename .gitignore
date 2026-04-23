@@ -5,7 +5,3 @@ node_modules/
 uploads/
 *.log
 *.sqlite-journal
-
-# database.sqlite is intentionally NOT ignored so Render gets the schema file.
-# On Render, mount a persistent disk at /data and set DB_PATH=/data/database.sqlite
-# to keep data between deploys. Without a disk, data resets on each deploy.

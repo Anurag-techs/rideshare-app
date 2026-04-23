@@ -6,22 +6,44 @@ const express    = require('express');
 const cors       = require('cors');
 const path       = require('path');
 const fs         = require('fs');
+const mongoose   = require('mongoose');
 const rateLimit  = require('express-rate-limit');
+const helmet     = require('helmet');
+const morgan     = require('morgan');
+const mongoSanitize = require('express-mongo-sanitize');
 require('dotenv').config();
 
 const { connectDB }  = require('./db/mongoose');
+const errorHandler   = require('./middleware/errorHandler');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
+let server; // For graceful shutdown
 
 // ── Ensure uploads dir exists ─────────────────────────────────────────────────
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-// ── Core Middleware ───────────────────────────────────────────────────────────
-app.use(cors());
-app.use(express.json({ strict: false }));
-app.use(express.urlencoded({ extended: true }));
+// ── Core Middleware (Security & Parsing) ──────────────────────────────────────
+app.use(helmet({ contentSecurityPolicy: false })); // Disabled CSP temporarily so frontend scripts/fonts load correctly
+
+// Restrict CORS in production to frontend domain, allow all in development
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' ? (process.env.FRONTEND_URL || false) : '*',
+  credentials: true,
+};
+app.use(cors(corsOptions));
+
+app.use(express.json({ strict: false, limit: '10kb' })); // Limit body size
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(mongoSanitize()); // Prevent NoSQL injection
+
+// Logging Upgrade: JSON format in prod, dev format in local
+if (process.env.NODE_ENV === 'production') {
+  app.use(morgan(':method :url :status :res[content-length] - :response-time ms'));
+} else {
+  app.use(morgan('dev'));
+}
 
 // ── Static files ──────────────────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -51,7 +73,7 @@ const apiLimiter = rateLimit({
   message: { error: 'Too many requests — please slow down.' },
 });
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, max: 50, standardHeaders: true, legacyHeaders: false,
+  windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false,
   message: { error: 'Too many login attempts — please wait 15 minutes and try again.' },
 });
 const signupLimiter = rateLimit({
@@ -59,12 +81,31 @@ const signupLimiter = rateLimit({
   skipSuccessfulRequests: true,
   message: { error: 'Too many signup attempts from this IP — please try again in an hour.' },
 });
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 15, standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Too many payment requests — please wait 15 minutes.' },
+});
 
 app.use('/api/', apiLimiter);
 app.use('/api/auth/login',  loginLimiter);
 app.use('/api/auth/signup', signupLimiter);
+app.use('/api/payments', paymentLimiter);
 
 // ── API Routes ────────────────────────────────────────────────────────────────
+// Health Check Endpoint
+app.get('/api/health', (req, res) => {
+  const dbState = mongoose.connection.readyState;
+  const dbStatus = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+  
+  res.status(200).json({
+    status: 'OK',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+    database: dbStatus[dbState] || 'unknown',
+    memory: process.memoryUsage()
+  });
+});
+
 app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/cars',      require('./routes/cars'));
 app.use('/api/rides',     require('./routes/rides'));
@@ -93,17 +134,54 @@ app.get('*', (req, res) => {
 });
 
 // ── Global Error Handler ──────────────────────────────────────────────────────
-app.use((err, req, res, next) => {
-  console.error('💥 Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error.' });
+app.use(errorHandler);
+
+// ── Graceful Shutdown Utility ─────────────────────────────────────────────────
+function gracefulShutdown(signal) {
+  console.log(`\n🛑 Received ${signal}. Closing HTTP server...`);
+  if (server) {
+    server.close(async () => {
+      console.log('✅ HTTP server closed.');
+      try {
+        await mongoose.connection.close();
+        console.log('✅ MongoDB connection closed.');
+        process.exit(0);
+      } catch (err) {
+        console.error('❌ Error closing MongoDB connection:', err);
+        process.exit(1);
+      }
+    });
+  } else {
+    process.exit(0);
+  }
+}
+
+// ── Global Unhandled Rejection Catcher ────────────────────────────────────────
+process.on('unhandledRejection', (err) => {
+  console.error('💥 UNHANDLED REJECTION! Shutting down gracefully...');
+  console.error(err.name, err.message);
+  if (server) {
+    server.close(() => process.exit(1));
+  } else {
+    process.exit(1);
+  }
 });
+
+process.on('uncaughtException', (err) => {
+  console.error('💥 UNCAUGHT EXCEPTION! Shutting down immediately...');
+  console.error(err.name, err.message);
+  process.exit(1);
+});
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
 
 // ── Start Server ──────────────────────────────────────────────────────────────
 async function start() {
   try {
     await connectDB();
 
-    app.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       const _rzpId  = (process.env.RAZORPAY_KEY_ID     || '').trim();
       const _rzpSec = (process.env.RAZORPAY_KEY_SECRET || '').trim();
       const _rzpOk  = _rzpId.startsWith('rzp_') && _rzpSec.length > 10;

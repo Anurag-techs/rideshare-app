@@ -3,6 +3,7 @@
  */
 const express          = require('express');
 const crypto           = require('crypto');
+const { body }         = require('express-validator');
 const Booking          = require('../models/Booking');
 const Payment          = require('../models/Payment');
 const Ride             = require('../models/Ride');
@@ -10,6 +11,7 @@ const User             = require('../models/User');
 const WalletTransaction= require('../models/WalletTransaction');
 const PlatformEarning  = require('../models/PlatformEarning');
 const { authRequired } = require('../middleware/auth');
+const validate         = require('../middleware/validate');
 const { notify }       = require('../utils/notify');
 
 const router = express.Router();
@@ -48,7 +50,6 @@ function verifyRazorpaySignature(orderId, paymentId, signature) {
 }
 
 function ok(res, data, status = 200)  { return res.status(status).json({ success: true,  ...data }); }
-function fail(res, msg, status = 400) { return res.status(status).json({ success: false, error: msg }); }
 
 // ── GET /api/payments/mode ────────────────────────────────────────────────────
 router.get('/mode', (req, res) => {
@@ -63,22 +64,38 @@ router.get('/mode', (req, res) => {
 });
 
 // ── POST /api/payments/create-order ──────────────────────────────────────────
-router.post('/create-order', authRequired, async (req, res) => {
+router.post('/create-order', authRequired, validate([
+  body('ride_id').trim().notEmpty().withMessage('Invalid ride_id'),
+  body('seats').optional().isInt({ min: 1, max: 10 }).toInt()
+]), async (req, res, next) => {
   try {
     const rideId    = req.body.ride_id;
-    const seatCount = Math.max(1, parseInt(req.body.seats, 10) || 1);
+    const seatCount = req.body.seats || 1;
     const userId    = req.user.id;
 
-    if (!rideId) return res.status(400).json({ error: 'Invalid ride_id.' });
-    if (seatCount < 1 || seatCount > 10) return res.status(400).json({ error: 'Seat count must be between 1 and 10.' });
-
     const ride = await Ride.findOne({ _id: rideId, status: 'active' });
-    if (!ride) return res.status(404).json({ error: 'Ride not found or no longer active.' });
-    if (String(ride.driver_id) === String(userId)) return res.status(400).json({ error: 'You cannot book your own ride.' });
-    if (ride.available_seats < seatCount) return res.status(400).json({ error: `Not enough seats. Requested ${seatCount}, only ${ride.available_seats} available.` });
+    if (!ride) {
+      const err = new Error('Ride not found or no longer active.');
+      err.statusCode = 404;
+      return next(err);
+    }
+    if (String(ride.driver_id) === String(userId)) {
+      const err = new Error('You cannot book your own ride.');
+      err.statusCode = 400;
+      return next(err);
+    }
+    if (ride.available_seats < seatCount) {
+      const err = new Error(`Not enough seats. Requested ${seatCount}, only ${ride.available_seats} available.`);
+      err.statusCode = 400;
+      return next(err);
+    }
 
     const existing = await Booking.findOne({ ride_id: rideId, passenger_id: userId, status: 'confirmed' });
-    if (existing) return res.status(409).json({ error: 'You already have a confirmed booking for this ride.' });
+    if (existing) {
+      const err = new Error('You already have a confirmed booking for this ride.');
+      err.statusCode = 409;
+      return next(err);
+    }
 
     const totalAmount = parseFloat((ride.price_per_seat * seatCount).toFixed(2));
     const { commission, driverEarning } = calcCommission(totalAmount);
@@ -86,7 +103,9 @@ router.post('/create-order', authRequired, async (req, res) => {
     if (totalAmount <= 0) return res.json({ free: true, totalAmount: 0, commission: 0, driverEarning: 0 });
 
     if (!razorpay) {
-      return res.status(503).json({ error: 'Payment system is not configured. Please contact support.', mock: true });
+      const err = new Error('Payment system is not configured. Please contact support.');
+      err.statusCode = 503;
+      return next(err);
     }
 
     let order;
@@ -98,52 +117,81 @@ router.post('/create-order', authRequired, async (req, res) => {
       });
     } catch (rzpErr) {
       const isAuthFail = rzpErr?.statusCode === 401 || (rzpErr?.error?.description || '').toLowerCase().includes('authentication');
-      if (isAuthFail) return res.status(401).json({ error: 'Payment gateway authentication failed.' });
-      return res.status(502).json({ error: 'Payment gateway error. Please try again.' });
+      const err = new Error(isAuthFail ? 'Payment gateway authentication failed.' : 'Payment gateway error. Please try again.');
+      err.statusCode = isAuthFail ? 401 : 502;
+      return next(err);
     }
 
     res.json({ free: false, mock: false, key_id: rzpKeyId, order_id: order.id, amount: order.amount, currency: order.currency, totalAmount, commission, driverEarning, ride_id: rideId, seats: seatCount, ride_from: ride.from_location, ride_to: ride.to_location });
   } catch (err) {
-    console.error('[CREATE-ORDER]', err.message);
-    res.status(500).json({ error: 'Failed to create payment order.' });
+    next(err);
   }
 });
 
 // ── POST /api/payments/verify ─────────────────────────────────────────────────
-router.post('/verify', authRequired, async (req, res) => {
+router.post('/verify', authRequired, validate([
+  body('ride_id').trim().notEmpty().withMessage('Invalid ride_id'),
+  body('razorpay_order_id').trim().notEmpty().withMessage('Missing razorpay_order_id'),
+  body('razorpay_payment_id').trim().notEmpty().withMessage('Missing razorpay_payment_id'),
+  body('razorpay_signature').trim().notEmpty().withMessage('Missing razorpay_signature'),
+  body('seats').optional().isInt({ min: 1, max: 10 }).toInt()
+]), async (req, res, next) => {
   try {
     const { ride_id, seats, razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-    const seatCount = Math.max(1, parseInt(seats, 10) || 1);
+    const seatCount = seats || 1;
     const userId    = req.user.id;
 
-    if (!ride_id)             return res.status(400).json({ error: 'Invalid ride_id.' });
-    if (!razorpay_order_id)   return res.status(400).json({ error: 'Missing razorpay_order_id.' });
-    if (!razorpay_payment_id) return res.status(400).json({ error: 'Missing razorpay_payment_id.' });
-    if (!razorpay_signature)  return res.status(400).json({ error: 'Missing razorpay_signature.' });
-
     const dupOrder = await Booking.findOne({ razorpay_order_id, status: 'confirmed' });
-    if (dupOrder) return fail(res, 'This payment has already been processed.', 409);
+    if (dupOrder) {
+      const err = new Error('This payment has already been processed.');
+      err.statusCode = 409;
+      return next(err);
+    }
 
     const dupPayment = await Payment.findOne({ razorpay_payment_id });
-    if (dupPayment) return fail(res, 'This payment ID has already been used.', 409);
+    if (dupPayment) {
+      const err = new Error('This payment ID has already been used.');
+      err.statusCode = 409;
+      return next(err);
+    }
 
     const ride = await Ride.findOne({ _id: ride_id, status: 'active' });
-    if (!ride) return fail(res, 'Ride not found.', 404);
-    if (String(ride.driver_id) === String(userId)) return fail(res, 'You cannot book your own ride.');
-    if (ride.available_seats < seatCount) return fail(res, `Not enough seats. Only ${ride.available_seats} available.`);
+    if (!ride) {
+      const err = new Error('Ride not found.');
+      err.statusCode = 404;
+      return next(err);
+    }
+    if (String(ride.driver_id) === String(userId)) {
+      const err = new Error('You cannot book your own ride.');
+      err.statusCode = 400;
+      return next(err);
+    }
+    if (ride.available_seats < seatCount) {
+      const err = new Error(`Not enough seats. Only ${ride.available_seats} available.`);
+      err.statusCode = 400;
+      return next(err);
+    }
 
     const dupBooking = await Booking.findOne({ ride_id, passenger_id: userId, status: 'confirmed' });
-    if (dupBooking) return fail(res, 'You already have a confirmed booking for this ride.', 409);
+    if (dupBooking) {
+      const err = new Error('You already have a confirmed booking for this ride.');
+      err.statusCode = 409;
+      return next(err);
+    }
 
     if (razorpay) {
       const valid = verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
-      if (!valid) return res.status(400).json({ error: 'Payment verification failed — invalid signature.' });
+      if (!valid) {
+        const err = new Error('Payment verification failed — invalid signature.');
+        err.statusCode = 400;
+        return next(err);
+      }
     }
 
     const totalAmount = parseFloat((ride.price_per_seat * seatCount).toFixed(2));
     const { commission, driverEarning } = calcCommission(totalAmount);
 
-    // Atomic: booking + payment + wallet credit
+    // Atomic updates - Ideally use mongoose session, but keeping current flow for parity
     const booking = await Booking.create({
       ride_id,
       passenger_id:        userId,
@@ -178,28 +226,48 @@ router.post('/verify', authRequired, async (req, res) => {
 
     return ok(res, { booking: populatedBooking, message: 'Payment verified & ride booked successfully! 🎉', commission, driverEarning }, 201);
   } catch (err) {
-    console.error('[VERIFY]', err.message);
-    return fail(res, 'Failed to verify payment. Please contact support.', 500);
+    next(err);
   }
 });
 
 // ── POST /api/payments/book-free ──────────────────────────────────────────────
-router.post('/book-free', authRequired, async (req, res) => {
+router.post('/book-free', authRequired, validate([
+  body('ride_id').trim().notEmpty().withMessage('Invalid ride_id'),
+  body('seats').optional().isInt({ min: 1, max: 10 }).toInt()
+]), async (req, res, next) => {
   try {
     const rideId    = req.body.ride_id;
-    const seatCount = Math.max(1, parseInt(req.body.seats, 10) || 1);
+    const seatCount = req.body.seats || 1;
     const userId    = req.user.id;
 
-    if (!rideId) return res.status(400).json({ error: 'Invalid ride_id.' });
-
     const ride = await Ride.findOne({ _id: rideId, status: 'active' });
-    if (!ride)                                         return res.status(404).json({ error: 'Ride not found or not active.' });
-    if (String(ride.driver_id) === String(userId))     return res.status(400).json({ error: 'You cannot book your own ride.' });
-    if (ride.price_per_seat > 0)                       return res.status(400).json({ error: 'This is a paid ride — use the payment flow.' });
-    if (ride.available_seats < seatCount)              return res.status(400).json({ error: `Not enough seats. Only ${ride.available_seats} left.` });
+    if (!ride) {
+      const err = new Error('Ride not found or not active.');
+      err.statusCode = 404;
+      return next(err);
+    }
+    if (String(ride.driver_id) === String(userId)) {
+      const err = new Error('You cannot book your own ride.');
+      err.statusCode = 400;
+      return next(err);
+    }
+    if (ride.price_per_seat > 0) {
+      const err = new Error('This is a paid ride — use the payment flow.');
+      err.statusCode = 400;
+      return next(err);
+    }
+    if (ride.available_seats < seatCount) {
+      const err = new Error(`Not enough seats. Only ${ride.available_seats} left.`);
+      err.statusCode = 400;
+      return next(err);
+    }
 
     const existing = await Booking.findOne({ ride_id: rideId, passenger_id: userId, status: 'confirmed' });
-    if (existing) return res.status(409).json({ error: 'You already have a confirmed booking for this ride.' });
+    if (existing) {
+      const err = new Error('You already have a confirmed booking for this ride.');
+      err.statusCode = 409;
+      return next(err);
+    }
 
     const booking = await Booking.create({
       ride_id: rideId, passenger_id: userId, seats_booked: seatCount,
@@ -210,20 +278,20 @@ router.post('/book-free', authRequired, async (req, res) => {
 
     res.status(201).json({ booking, message: 'Free ride booked successfully! 🎉' });
   } catch (err) {
-    console.error('[BOOK-FREE]', err.message);
-    res.status(500).json({ error: 'Failed to book ride.' });
+    next(err);
   }
 });
 
 // ── GET /api/payments/my ──────────────────────────────────────────────────────
-router.get('/my', authRequired, async (req, res) => {
+router.get('/my', authRequired, async (req, res, next) => {
   try {
     const payments = await Payment.find({ user_id: req.user.id })
       .populate({ path: 'booking_id', populate: { path: 'ride_id', select: 'from_location to_location departure_time' } })
-      .sort({ created_at: -1 });
+      .sort({ created_at: -1 })
+      .lean();
 
     const result = payments.map(p => {
-      const obj = p.toObject();
+      const obj = { ...p };
       obj.id             = obj._id;
       obj.seats_booked   = obj.booking_id?.seats_booked;
       obj.from_location  = obj.booking_id?.ride_id?.from_location;
@@ -234,8 +302,7 @@ router.get('/my', authRequired, async (req, res) => {
 
     res.json({ payments: result });
   } catch (err) {
-    console.error('[PAYMENTS /my]', err.message);
-    res.status(500).json({ error: 'Server error.' });
+    next(err);
   }
 });
 

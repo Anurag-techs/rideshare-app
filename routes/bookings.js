@@ -9,7 +9,7 @@ const { authRequired } = require('../middleware/auth');
 const router = express.Router();
 
 // ── GET /api/bookings/my ──────────────────────────────────────────────────────
-router.get('/my', authRequired, async (req, res) => {
+router.get('/my', authRequired, async (req, res, next) => {
   try {
     const bookings = await Booking.find({ passenger_id: req.user.id })
       .populate({
@@ -19,10 +19,11 @@ router.get('/my', authRequired, async (req, res) => {
           { path: 'car_id',    select: 'model color' },
         ],
       })
-      .sort({ created_at: -1 });
+      .sort({ created_at: -1 })
+      .lean();
 
     const result = bookings.map(b => {
-      const obj  = b.toObject();
+      const obj  = { ...b };
       const ride = obj.ride_id || {};
       obj.id             = obj._id;
       obj.from_location  = ride.from_location;
@@ -41,20 +42,23 @@ router.get('/my', authRequired, async (req, res) => {
 
     res.json({ bookings: result });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error.' });
+    next(err);
   }
 });
 
 // ── PUT /api/bookings/:id/cancel ──────────────────────────────────────────────
-router.put('/:id/cancel', authRequired, async (req, res) => {
+router.put('/:id/cancel', authRequired, async (req, res, next) => {
   try {
     const booking = await Booking.findOne({
       _id:          req.params.id,
       passenger_id: req.user.id,
       status:       { $ne: 'cancelled' },
     });
-    if (!booking) return res.status(404).json({ error: 'Booking not found.' });
+    if (!booking) {
+      const err = new Error('Booking not found.');
+      err.statusCode = 404;
+      return next(err);
+    }
 
     await Booking.findByIdAndUpdate(req.params.id, { status: 'cancelled' });
     await Ride.findByIdAndUpdate(booking.ride_id, {
@@ -63,13 +67,12 @@ router.put('/:id/cancel', authRequired, async (req, res) => {
 
     res.json({ message: 'Booking cancelled.' });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error.' });
+    next(err);
   }
 });
 
 // ── GET /api/bookings/driver ──────────────────────────────────────────────────
-router.get('/driver', authRequired, async (req, res) => {
+router.get('/driver', authRequired, async (req, res, next) => {
   try {
     // Find all rides by this driver
     const rideIds = await Ride.find({ driver_id: req.user.id }).distinct('_id');
@@ -80,10 +83,11 @@ router.get('/driver', authRequired, async (req, res) => {
     })
       .populate('ride_id', 'from_location to_location departure_time')
       .populate('passenger_id', 'name profile_photo phone')
-      .sort({ created_at: -1 });
+      .sort({ created_at: -1 })
+      .lean();
 
     const result = bookings.map(b => {
-      const obj = b.toObject();
+      const obj = { ...b };
       obj.id               = obj._id;
       obj.from_location    = obj.ride_id?.from_location;
       obj.to_location      = obj.ride_id?.to_location;
@@ -96,7 +100,7 @@ router.get('/driver', authRequired, async (req, res) => {
 
     res.json({ bookings: result });
   } catch (err) {
-    res.status(500).json({ error: 'Server error.' });
+    next(err);
   }
 });
 
