@@ -1,29 +1,31 @@
 /**
- * utils/notify.js — Shared notification helper
- * Call this from any route to push a notification to a user.
- * Always call INSIDE or OUTSIDE a transaction — it uses prepare() directly.
+ * utils/notify.js — Shared notification helper (MongoDB)
  */
-const { prepare } = require('../db/init');
+const Notification = require('../models/Notification');
+
+function cleanInput(text) {
+  if (!text) return text;
+  return String(text).replace(/[^\x00-\x7F]/g, '');
+}
 
 /**
- * @param {number} userId
+ * @param {ObjectId|string} userId
  * @param {string} title
  * @param {string} message
  * @param {'info'|'success'|'warning'|'error'} type
  * @param {string|null} refType  e.g. 'booking', 'withdrawal'
- * @param {number|null} refId
+ * @param {ObjectId|string|null} refId
  */
-function cleanInput(text) {
-  if (!text) return text;
-  return String(text).replace(/[^\x00-\x7F]/g, "");
-}
-
-function notify(userId, title, message, type = 'info', refType = null, refId = null) {
+async function notify(userId, title, message, type = 'info', refType = null, refId = null) {
   try {
-    prepare(
-      `INSERT INTO notifications (user_id, title, message, type, ref_type, ref_id)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(userId, cleanInput(title), cleanInput(message), type, refType, refId);
+    await Notification.create({
+      user_id:  userId,
+      title:    cleanInput(title),
+      message:  cleanInput(message),
+      type,
+      ref_type: refType,
+      ref_id:   refId || null,
+    });
   } catch (err) {
     // Never let notification failure break a transaction
     console.error('[notify] Failed to create notification:', err.message);
