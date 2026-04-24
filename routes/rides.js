@@ -7,18 +7,25 @@ const Ride    = require('../models/Ride');
 const Booking = require('../models/Booking');
 const { authRequired, authOptional } = require('../middleware/auth');
 const validate = require('../middleware/validate');
+const rateLimit = require('express-rate-limit');
+
+const rideCreateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 ride creations per windowMs
+  message: { success: false, message: 'Too many rides created from this IP, please try again after 15 minutes' }
+});
 
 const router = express.Router();
 
 // ── POST /api/rides ───────────────────────────────────────────────────────────
-router.post('/', authRequired, validate([
+router.post('/', authRequired, rideCreateLimiter, validate([
   body('from_location').trim().notEmpty().withMessage('From location is required').escape(),
   body('to_location').trim().notEmpty().withMessage('To location is required').escape(),
   body('departure_time').isISO8601().withMessage('Valid departure time is required').toDate(),
   body('car_name').optional({ nullable: true }).trim().escape(),
   body('notes').optional({ nullable: true }).trim().escape(),
-  body('total_seats').optional().isInt({ min: 1, max: 8 }).toInt(),
-  body('price_per_seat').optional().isFloat({ min: 0 }).toFloat(),
+  body('total_seats').notEmpty().withMessage('Total seats is required').isInt({ min: 1, max: 10 }).toInt(),
+  body('price_per_seat').notEmpty().withMessage('Price per seat is required').isFloat({ min: 0 }).toFloat(),
   body('from_lat').optional({ nullable: true }).isFloat().toFloat(),
   body('from_lng').optional({ nullable: true }).isFloat().toFloat(),
   body('to_lat').optional({ nullable: true }).isFloat().toFloat(),
@@ -58,6 +65,38 @@ router.post('/', authRequired, validate([
   }
 });
 
+// ── GET /api/rides (all active future rides) ──────────────────────────────────
+router.get('/', authOptional, async (req, res, next) => {
+  try {
+    const q = { status: 'active', available_seats: { $gt: 0 }, departure_time: { $gte: new Date() } };
+    const rides = await Ride.find(q)
+      .populate('driver_id', 'name profile_photo avg_rating total_ratings')
+      .populate('car_id', 'model color')
+      .sort({ departure_time: 1 })
+      .limit(50)
+      .lean();
+
+    const result = await Promise.all(rides.map(async r => {
+      const obj = { ...r };
+      obj.id             = obj._id;
+      obj.driver_name    = obj.driver_id?.name;
+      obj.driver_photo   = obj.driver_id?.profile_photo;
+      obj.driver_rating  = obj.driver_id?.avg_rating;
+      obj.driver_total_ratings = obj.driver_id?.total_ratings;
+      obj.car_model      = obj.car_id?.model;
+      obj.car_color      = obj.car_id?.color;
+      obj.booking_count  = obj.total_seats - obj.available_seats;
+      const driverCompletedRides = await Ride.countDocuments({ driver_id: r.driver_id, status: 'completed' });
+      obj.driver_completed_rides = driverCompletedRides;
+      return obj;
+    }));
+
+    res.json({ rides: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── GET /api/rides/search ─────────────────────────────────────────────────────
 router.get('/search', authOptional, validate([
   query('from').optional().trim().escape(),
@@ -76,6 +115,8 @@ router.get('/search', authOptional, validate([
       const start = new Date(date); start.setHours(0,0,0,0);
       const end   = new Date(date); end.setHours(23,59,59,999);
       q.departure_time = { $gte: start, $lte: end };
+    } else {
+      q.departure_time = { $gte: new Date() };
     }
     if (max_price) q.price_per_seat = { $lte: max_price };
 

@@ -18,7 +18,45 @@
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-
+  <!-- App Loader for Render Cold Start -->
+  <div id="appLoader" style="position:fixed;inset:0;background:var(--bg-card);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity 0.5s ease, visibility 0.5s;">
+    <div style="font-size:3.5rem;margin-bottom:1rem;color:var(--primary);"><i data-lucide="car-front"></i></div>
+    <div style="width:48px;height:48px;border:4px solid rgba(79, 70, 229, 0.2);border-top-color:var(--primary);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:1.5rem;"></div>
+    <h2 style="font-family:Inter,sans-serif;font-weight:600;font-size:1.4rem;color:var(--text);margin-bottom:8px;">Starting RideShare... Please wait</h2>
+    <p id="loaderText" style="color:var(--text-secondary);font-size:0.9rem;">Waking up server</p>
+  </div>
+  <script>
+    (async function pingServer() {
+      let retries = 0;
+      const maxRetries = 20; // max 40 seconds
+      const loader = document.getElementById('appLoader');
+      const loaderText = document.getElementById('loaderText');
+      
+      const check = async () => {
+        try {
+          const res = await fetch('/api/health');
+          if (res.ok) {
+            if (loader) {
+              loader.style.opacity = '0';
+              setTimeout(() => {
+                loader.remove();
+              }, 500);
+            }
+            return;
+          }
+        } catch (e) {
+          // ignore
+        }
+        
+        retries++;
+        if (retries >= maxRetries) {
+          if (loaderText) loaderText.textContent = 'Server is taking longer than expected...';
+        }
+        setTimeout(check, 2000);
+      };
+      check();
+    })();
+  </script>
   <!-- Navigation -->
   <nav class="navbar" id="navbar">
     <div class="nav-container">
@@ -83,8 +121,8 @@
         <div class="hero-bg"></div>
         <div class="hero-content">
           <div class="hero-badge"><i data-lucide="leaf" style="width: 14px; height: 14px; margin-right: 4px; color: var(--success);"></i> Eco-Friendly Travel</div>
-          <h1 class="hero-title">Share the Ride,<br><span class="gradient-text">Share the Journey</span></h1>
-          <p class="hero-subtitle">Connect with fellow travelers heading your way. Pay with UPI, GPay, or PhonePe. Save money, reduce emissions.</p>
+          <h1 class="hero-title">Travel cheaper. Share rides.<br><span class="gradient-text">Save money.</span></h1>
+          <p class="hero-subtitle">The smart way to travel. Connect with verified travelers, pay securely with UPI, and save up to 70% on your journey.</p>
           <div class="hero-actions">
             <a href="#/find" class="btn btn-primary btn-lg hero-cta">
               <i data-lucide="search" style="width: 20px; height: 20px; margin-right: 8px;"></i> Find a Ride
@@ -375,11 +413,11 @@
             <div class="search-row">
               <div class="form-group">
                 <label for="searchFrom">From</label>
-                <input type="text" id="searchFrom" placeholder="Starting location">
+                <input type="text" id="searchFrom" placeholder="Starting location" value="Delhi">
               </div>
               <div class="form-group">
                 <label for="searchTo">To</label>
-                <input type="text" id="searchTo" placeholder="Destination">
+                <input type="text" id="searchTo" placeholder="Destination" value="Noida">
               </div>
               <div class="form-group">
                 <label for="searchDate">Date</label>
@@ -640,6 +678,7 @@
               </div>
               <label for="profilePhotoInput" class="btn btn-ghost btn-sm">📷 Change Photo</label>
               <input type="file" id="profilePhotoInput" accept="image/*" class="hidden">
+              <p id="profileJoinDate" style="color:var(--text-muted);font-size:0.85rem;margin-top:8px;text-align:center;"></p>
             </div>
             <form id="profileForm" class="auth-form">
               <div class="form-group">
@@ -823,6 +862,30 @@
   </div>
 
   <!-- Razorpay SDK (replaces Stripe) -->
+  <!-- Mobile Bottom Navigation -->
+  <div class="mobile-bottom-nav">
+    <a href="#/home" class="mobile-nav-item">
+      <i data-lucide="home"></i>
+      <span>Home</span>
+    </a>
+    <a href="#/find" class="mobile-nav-item">
+      <i data-lucide="search"></i>
+      <span>Find Ride</span>
+    </a>
+    <a href="#/create" class="mobile-nav-item offer-btn">
+      <i data-lucide="plus-circle"></i>
+      <span>Offer Ride</span>
+    </a>
+    <a href="#/dashboard" class="mobile-nav-item">
+      <i data-lucide="layout-dashboard"></i>
+      <span>Dashboard</span>
+    </a>
+    <a href="#/profile" class="mobile-nav-item">
+      <i data-lucide="user"></i>
+      <span>Profile</span>
+    </a>
+  </div>
+
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/js/api.js"></script>

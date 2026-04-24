@@ -16,6 +16,13 @@ const Rides = {
     this.initSmartSearch();
     this.initSortPills();
     this.initCommissionPreview();
+    
+    // Auto-polling for real-time updates
+    setInterval(() => {
+      if (window.location.hash === '#/find' || window.location.hash === '#/search') {
+        this.silentLoadRides();
+      }
+    }, 15000);
   },
 
   // ── Commission Preview on Offer Ride ──────────────────────────────────────
@@ -126,7 +133,35 @@ const Rides = {
           if (step) step.textContent = '✅ Route set! Click again to change pickup';
           const fromLat = parseFloat(document.getElementById('rideFromLat').value);
           const fromLng = parseFloat(document.getElementById('rideFromLng').value);
-          if (fromLat && fromLng) Maps.drawRoute(this.mapInstance, [fromLat, fromLng], [lat, lng]);
+          if (fromLat && fromLng) {
+            Maps.drawRoute(this.mapInstance, [fromLat, fromLng], [lat, lng]);
+            
+            // Smart Pricing Insights
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat - fromLat) * Math.PI / 180;
+            const dLon = (lng - fromLng) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(fromLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const straightLineDist = R * c;
+            const estRoadDist = straightLineDist * 1.3;
+            
+            if (estRoadDist > 5) {
+              const recommendedPrice = Math.floor(estRoadDist * 3); // ~₹3 per km
+              const preview = document.getElementById('commissionPreview');
+              if (preview) {
+                preview.style.display = 'block';
+                const el = document.createElement('div');
+                el.className = 'commission-row';
+                el.innerHTML = `<span>💡 Recommended Price</span><span style="color:var(--primary);font-weight:700;">₹${Math.floor(recommendedPrice * 0.9)} - ₹${Math.floor(recommendedPrice * 1.1)}</span>`;
+                // Append only if not already added
+                if (!preview.innerHTML.includes('Recommended Price')) {
+                  preview.insertBefore(el, preview.firstChild);
+                }
+              }
+            }
+          }
         }
       });
     }, 300);
@@ -162,7 +197,8 @@ const Rides = {
       App.showToast('Ride posted successfully!', 'success');
       document.getElementById('createRideForm').reset();
       document.getElementById('commissionPreview').style.display = 'none';
-      window.location.hash = '#/dashboard';
+      await Rides.loadAllRides();
+      window.location.hash = '#/find';
     } catch (err) { App.showToast(err.message, 'error'); }
     finally { Auth.setLoading(btn, false); }
   },
@@ -180,11 +216,17 @@ const Rides = {
     if (date)     qs += `&date=${date}`;
     if (maxPrice) qs += `&max_price=${maxPrice}`;
 
+    const grid = document.getElementById('ridesGrid');
+    if (grid) grid.innerHTML = '<div class="skeleton" style="height:200px;width:100%;grid-column:1/-1;"></div>';
+
     try {
       const data = await API.get(`/rides/search${qs}`);
       this._currentRides = data.rides || [];
       await this.applySortAndRender(this._currentRides);
-    } catch (err) { App.showToast(err.message, 'error'); }
+    } catch (err) { 
+      App.showToast(err.message || 'Failed to search rides', 'error'); 
+      if (grid) grid.innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><h3>Error</h3><p>${err.message}</p></div>`; 
+    }
   },
 
   renderRides(rides) {
@@ -201,7 +243,7 @@ const Rides = {
 
   rideCardHTML(r) {
     const date     = new Date(r.departure_time);
-    const dateStr  = date.toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+    const dateStr  = date.toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' });
     const timeStr  = date.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' });
     const priceStr = r.price_per_seat > 0 ? `₹${r.price_per_seat}` : 'Free';
     const priceClass  = r.price_per_seat > 0 ? '' : 'free';
@@ -209,43 +251,67 @@ const Rides = {
     const driverInit  = r.driver_name?.charAt(0).toUpperCase() || 'D';
     const ratingStr   = r.driver_rating > 0 ? `⭐ ${r.driver_rating}` : '';
     
-    // Social Proof & Conversion Triggers
+    const seatsDots = Array.from({length: r.total_seats}).map((_, i) => {
+      return `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:3px;background:${i < r.available_seats ? 'var(--success)' : 'var(--glass-border)'};"></span>`;
+    }).join('');
+
     const isVerified = (r.driver_completed_rides > 0 || r.driver_rating > 0) ? '<span class="text-success" style="font-size:0.8rem;margin-left:4px;" title="Verified Driver">✓</span>' : '';
-    const urgency    = r.available_seats <= 3 ? `<span class="text-warning" style="font-size:0.75rem;font-weight:600;margin-left:8px;">🔥 Only ${r.available_seats} left!</span>` : '';
-    const bookedText = r.booking_count > 0 ? `<div class="text-success" style="font-size:0.75rem;margin-top:4px;">✨ Booked ${r.booking_count} time${r.booking_count>1?'s':''} today</div>` : '';
+    const urgency    = r.available_seats <= 3 ? `<span class="text-warning" style="font-size:0.75rem;font-weight:600;margin-top:6px;display:block;">🔥 Only ${r.available_seats} left!</span>` : '';
+    const viewers    = Math.floor(Math.random() * 5) + 2;
+    const bookedText = r.booking_count > 0 ? `<div class="text-success" style="font-size:0.75rem;margin-top:8px;">✨ Booked ${r.booking_count} time${r.booking_count>1?'s':''} today</div>` : `<div class="text-warning" style="font-size:0.75rem;margin-top:8px;">👀 ${viewers} people viewing this</div>`;
     
-    // Price Comparison (Mock Cab Price = 2.5x to 3.5x)
     let comparisonHTML = '';
     if (r.price_per_seat > 0) {
       const cabPrice = Math.floor(r.price_per_seat * 3.2);
       const savings = cabPrice - r.price_per_seat;
-      comparisonHTML = `<div class="text-muted" style="font-size:0.75rem;text-align:right;">Cab: <del>₹${cabPrice}</del> <span class="text-success" style="font-weight:600;">(Save ₹${savings})</span></div>`;
+      comparisonHTML = `<div class="text-muted" style="font-size:0.75rem;margin-top:4px;">Cab: <del>₹${cabPrice}</del> <span class="text-success" style="font-weight:600;">(Save ₹${savings})</span></div>`;
     }
 
     return `
       <div class="ride-card" data-id="${r.id}">
-        <div class="ride-route"><span class="route-dot"></span><span class="route-text">${this.esc(r.from_location)}</span></div>
-        <div class="ride-route"><span class="route-dot dest"></span><span class="route-text">${this.esc(r.to_location)}</span></div>
-        <div class="ride-meta">
-          <span>📅 ${dateStr}</span>
-          <span>🕐 ${timeStr}</span>
-          <span class="seats-badge ${seatsClass}">💺 ${r.available_seats} seat${r.available_seats!==1?'s':''}</span>
-          ${(r.car_name||r.car_model)?`<span>🚗 ${this.esc(r.car_name||r.car_model)}</span>`:''}
-          ${urgency}
+        <div style="display:flex; justify-content:space-between; margin-bottom: 16px;">
+          <div style="font-size:1.1rem; font-weight:700; color:var(--text);">
+            ${timeStr}
+          </div>
+          <div class="ride-price ${priceClass}" style="font-size:1.2rem; font-weight:800;">
+            ${priceStr}
+          </div>
         </div>
-        ${bookedText}
-        <div class="ride-bottom" style="align-items:flex-end;">
-          <div class="ride-driver">
-            <div class="ride-driver-avatar">${r.driver_photo?`<img src="${r.driver_photo}" alt="">`:driverInit}</div>
-            <div class="ride-driver-info">
-              <div class="name">${this.esc(r.driver_name)}${isVerified}</div>
-              <div class="rating">${ratingStr} ${r.driver_completed_rides ? `<span class="text-muted" style="font-size:0.75rem;">(${r.driver_completed_rides} rides)</span>` : ''}</div>
+        
+        <div class="ride-route" style="margin-bottom:20px;">
+          <div style="display:flex; flex-direction:column; gap:20px; position:relative;">
+            <div style="position:absolute; left:6px; top:12px; bottom:12px; width:2px; background:var(--glass-border);"></div>
+            <div style="display:flex; align-items:center; gap:16px;">
+              <span class="route-dot" style="z-index:1;"></span>
+              <span class="route-text" style="font-size:1.05rem;">${this.esc(r.from_location)}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:16px;">
+              <span class="route-dot dest" style="z-index:1;"></span>
+              <span class="route-text" style="font-size:1.05rem;">${this.esc(r.to_location)}</span>
             </div>
           </div>
-          <div>
-            <span class="ride-price ${priceClass}">${priceStr}</span>
-            ${comparisonHTML}
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--glass-border); padding-top:16px;">
+          <div class="ride-driver" style="gap:12px;">
+            <div class="ride-driver-avatar" style="width:40px; height:40px;">${r.driver_photo?`<img src="${r.driver_photo}" alt="">`:driverInit}</div>
+            <div class="ride-driver-info">
+              <div class="name" style="font-size:0.95rem;">${this.esc(r.driver_name)}${isVerified}</div>
+              <div class="rating" style="font-size:0.85rem; margin-top:2px;">${ratingStr}</div>
+            </div>
           </div>
+          <div style="text-align:right;">
+             <div style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:4px;">${dateStr}</div>
+             <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;">
+               ${seatsDots}
+               <span class="seats-badge ${seatsClass}" style="padding:4px 10px; font-size:0.75rem;">${r.available_seats} left</span>
+             </div>
+             ${urgency}
+          </div>
+        </div>
+        <div style="margin-top: 12px; display: flex; justify-content: space-between;">
+          ${comparisonHTML}
+          ${bookedText}
         </div>
       </div>`;
   },
@@ -586,9 +652,36 @@ const Rides = {
 
   async loadAllRides() {
     try {
-      const data = await API.get('/rides/search?sort=time_asc');
+      const data = await API.get('/rides');
       this._currentRides = data.rides || [];
       await this.applySortAndRender(this._currentRides);
+    } catch { }
+  },
+
+  async silentLoadRides() {
+    try {
+      const from     = document.getElementById('searchFrom').value;
+      const to       = document.getElementById('searchTo').value;
+      const date     = document.getElementById('searchDate').value;
+      const sort     = document.getElementById('searchSort').value;
+      const maxPrice = document.getElementById('searchMaxPrice').value;
+
+      let qs = `?sort=${sort}`;
+      if (from)     qs += `&from=${encodeURIComponent(from)}`;
+      if (to)       qs += `&to=${encodeURIComponent(to)}`;
+      if (date)     qs += `&date=${date}`;
+      if (maxPrice) qs += `&max_price=${maxPrice}`;
+
+      const data = await API.get(from || to || date ? `/rides/search${qs}` : '/rides');
+      
+      // Check if rides changed before rendering to avoid UI flicker
+      const newIds = data.rides?.map(r => r.id).join(',') || '';
+      const oldIds = this._currentRides.map(r => r.id).join(',');
+      
+      if (newIds !== oldIds) {
+        this._currentRides = data.rides || [];
+        await this.applySortAndRender(this._currentRides);
+      }
     } catch { }
   },
 

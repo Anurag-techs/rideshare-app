@@ -77,6 +77,11 @@ const Auth = {
       } else {
         document.getElementById('profileInitial').textContent = u.name?.charAt(0).toUpperCase() || 'U';
       }
+      if (u.created_at) {
+        const joinDate = new Date(u.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        const dateEl = document.getElementById('profileJoinDate');
+        if (dateEl) dateEl.innerHTML = `Joined ${joinDate} <span style="color:var(--success);margin-left:4px;">✓ Verified</span>`;
+      }
       this.loadRatings(u.id);
     } catch (err) { App.showToast(err.message, 'error'); }
   },
