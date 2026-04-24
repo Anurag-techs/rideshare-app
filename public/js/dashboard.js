@@ -75,6 +75,34 @@ const Dashboard = {
             </div>
           </div>`;
         }).join('');
+
+        passEl.querySelectorAll('.rebook-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('searchFrom').value = btn.dataset.from;
+            document.getElementById('searchTo').value = btn.dataset.to;
+            window.location.hash = '#/find';
+            Rides.search();
+          });
+        });
+
+        
+        passEl.querySelectorAll('.chat-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            Chat.open(btn.dataset.ride);
+          });
+        });
+
+        passEl.querySelectorAll('.save-driver-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+              const res = await API.post('/auth/favorite', { target_user_id: btn.dataset.id });
+              App.showToast(res.message, 'success');
+            } catch (err) { App.showToast(err.message, 'error'); }
+          });
+        });
       }
     }
 
@@ -103,9 +131,12 @@ const Dashboard = {
               <span>ðŸ§‘â€âœˆï¸ ${Rides.esc(b.driver_name)}</span>
               <span>💰 ${b.price_per_seat > 0 ? '₹'+b.price_per_seat : 'Free'}</span>
             </div>
-            <div style="display:flex;gap:8px;margin-top:12px;">
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
               ${canCancel ? `<button class="btn btn-ghost btn-sm cancel-booking-btn" data-id="${b.id}">Cancel</button>` : ''}
-              ${canRate   ? `<button class="btn btn-ghost btn-sm rate-btn" data-ride="${b.ride_id}" data-user="${b.driver_id}">â­ Rate Driver</button>` : ''}
+              ${canRate   ? `<button class="btn btn-ghost btn-sm rate-btn" data-ride="${b.ride_id}" data-user="${b.driver_id}">⭐ Rate Driver</button>` : ''}
+              <button class="btn btn-outline btn-sm rebook-btn" data-from="${Rides.esc(b.from_location)}" data-to="${Rides.esc(b.to_location)}">🔄 Rebook</button>
+              <button class="btn btn-outline btn-sm chat-btn" data-ride="${b.ride_id}">💬 Chat</button>
+              <button class="btn btn-outline btn-sm save-driver-btn" data-id="${b.driver_id}">❤️ Save Driver</button>
             </div>
           </div>`;
         }).join('');
@@ -128,6 +159,26 @@ const Dashboard = {
             document.getElementById('ratingRideId').value = btn.dataset.ride;
             document.getElementById('ratingUserId').value = btn.dataset.user;
             document.getElementById('ratingModal').classList.remove('hidden');
+          });
+        });
+
+        passEl.querySelectorAll('.rebook-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('searchFrom').value = btn.dataset.from;
+            document.getElementById('searchTo').value = btn.dataset.to;
+            window.location.hash = '#/find';
+            Rides.search();
+          });
+        });
+
+        passEl.querySelectorAll('.save-driver-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+              const res = await API.post('/auth/favorite', { target_user_id: btn.dataset.id });
+              App.showToast(res.message, 'success');
+            } catch (err) { App.showToast(err.message, 'error'); }
           });
         });
       }

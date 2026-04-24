@@ -54,7 +54,7 @@ router.post('/signup', validate([
     await notify(user._id, '🎉 Welcome to RideShare!', `Hi ${name}! Your account is ready.`, 'success');
 
     const token = generateToken(user);
-    const safeUser = { id: user._id, name: user.name, email: user.email, phone: user.phone, profile_photo: user.profile_photo, avg_rating: user.avg_rating, total_ratings: user.total_ratings, created_at: user.created_at };
+    const safeUser = { id: user._id, name: user.name, email: user.email, phone: user.phone, profile_photo: user.profile_photo, avg_rating: user.avg_rating, total_ratings: user.total_ratings, loyalty_points: user.loyalty_points, created_at: user.created_at };
     res.status(201).json({ token, user: safeUser });
   } catch (err) {
     next(err);
@@ -84,7 +84,7 @@ router.post('/login', validate([
     }
 
     const token = generateToken(user);
-    const safeUser = { id: user._id, name: user.name, email: user.email, phone: user.phone, profile_photo: user.profile_photo, avg_rating: user.avg_rating, total_ratings: user.total_ratings, wallet_balance: user.wallet_balance, is_admin: user.is_admin, created_at: user.created_at };
+    const safeUser = { id: user._id, name: user.name, email: user.email, phone: user.phone, profile_photo: user.profile_photo, avg_rating: user.avg_rating, total_ratings: user.total_ratings, wallet_balance: user.wallet_balance, loyalty_points: user.loyalty_points, is_admin: user.is_admin, created_at: user.created_at };
     res.json({ token, user: safeUser });
   } catch (err) {
     next(err);
@@ -148,6 +148,41 @@ router.post('/upload-photo', authRequired, upload.single('photo'), async (req, r
     const photoPath = `/uploads/${req.file.filename}`;
     await User.findByIdAndUpdate(req.user.id, { profile_photo: photoPath });
     res.json({ profile_photo: photoPath });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/auth/favorite ───────────────────────────────────────────────────
+router.post('/favorite', authRequired, validate([
+  body('target_user_id').notEmpty().withMessage('Target user ID is required').isMongoId().withMessage('Invalid user ID format')
+]), async (req, res, next) => {
+  try {
+    const { target_user_id } = req.body;
+    if (String(req.user.id) === String(target_user_id)) {
+      const err = new Error('You cannot favorite yourself.');
+      err.statusCode = 400;
+      return next(err);
+    }
+    const user = await User.findById(req.user.id);
+    const index = user.favorites.indexOf(target_user_id);
+    if (index > -1) {
+      user.favorites.splice(index, 1);
+    } else {
+      user.favorites.push(target_user_id);
+    }
+    await user.save();
+    res.json({ message: index > -1 ? 'Removed from favorites' : 'Added to favorites', is_favorite: index === -1 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/auth/favorites ───────────────────────────────────────────────────
+router.get('/favorites', authRequired, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id).populate('favorites', 'name profile_photo avg_rating total_ratings');
+    res.json({ favorites: user.favorites });
   } catch (err) {
     next(err);
   }

@@ -117,6 +117,7 @@ app.use('/api/admin',     require('./routes/admin'));
 app.use('/api/earnings',  require('./routes/earnings'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/growth',    require('./routes/growth'));
+app.use('/api/messages',  require('./routes/messages'));
 
 // ── Config endpoint ───────────────────────────────────────────────────────────
 app.get('/api/config', (req, res) => {

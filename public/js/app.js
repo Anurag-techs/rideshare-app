@@ -261,5 +261,86 @@ const App = {
 // Boot
 document.addEventListener('DOMContentLoaded', () => {
   App.init();
+  Chat.init();
   App.initTabs();
 });
+
+
+// ── Chat Logic ──────────────────────────────────────────────────────────────
+const Chat = {
+  chatInterval: null,
+  
+  async open(bookingId) {
+    document.getElementById('chatBookingId').value = bookingId;
+    document.getElementById('chatModal').classList.remove('hidden');
+    document.getElementById('chatMessages').innerHTML = '<div style="text-align:center;">Loading...</div>';
+    await this.loadMessages();
+    
+    if (this.chatInterval) clearInterval(this.chatInterval);
+    this.chatInterval = setInterval(() => this.loadMessages(), 5000);
+  },
+  
+  close() {
+    document.getElementById('chatModal').classList.add('hidden');
+    if (this.chatInterval) clearInterval(this.chatInterval);
+  },
+  
+  async loadMessages() {
+    try {
+      const bookingId = document.getElementById('chatBookingId').value;
+      if (!bookingId) return;
+      const data = await API.get('/messages/' + bookingId);
+      const user = API.getUser();
+      
+      const container = document.getElementById('chatMessages');
+      if (data.messages.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:var(--text-muted);margin-top:20px;">No messages yet. Start coordinating!</div>';
+        return;
+      }
+      
+      container.innerHTML = data.messages.map(m => {
+        const isMe = m.sender_id && m.sender_id._id === user.id;
+        const senderName = m.sender_id ? m.sender_id.name.split(' ')[0] : 'User';
+        return `<div style="display:flex; justify-content:${isMe ? 'flex-end' : 'flex-start'};">
+          <div style="background:${isMe ? '#dcf8c6' : '#ffffff'}; color:#000; padding:8px 12px; border-radius:12px; max-width:85%; font-size:0.9rem; box-shadow:0 1px 2px rgba(0,0,0,0.1);">
+            ${!isMe ? `<div style="font-weight:700; font-size:0.75rem; color:var(--primary); margin-bottom:2px;">${Rides.esc(senderName)}</div>` : ''}
+            <div>${Rides.esc(m.message)}</div>
+          </div>
+        </div>`;
+      }).join('');
+      
+      // Auto scroll to bottom only if not manually scrolled up
+      if (container.scrollTop + container.clientHeight >= container.scrollHeight - 50) {
+        container.scrollTop = container.scrollHeight;
+      }
+    } catch (err) {}
+  },
+  
+  async send() {
+    const input = document.getElementById('chatInput');
+    const msg = input.value.trim();
+    if (!msg) return;
+    
+    const bookingId = document.getElementById('chatBookingId').value;
+    input.value = '';
+    
+    try {
+      await API.post('/messages/' + bookingId, { message: msg });
+      await this.loadMessages();
+      const container = document.getElementById('chatMessages');
+      container.scrollTop = container.scrollHeight;
+    } catch (err) {
+      App.showToast(err.message, 'error');
+    }
+  },
+  
+  init() {
+    document.getElementById('closeChatModal')?.addEventListener('click', () => this.close());
+    document.getElementById('sendChatBtn')?.addEventListener('click', () => this.send());
+    document.getElementById('chatInput')?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') this.send();
+    });
+  }
+};
+
+window.Chat = Chat;

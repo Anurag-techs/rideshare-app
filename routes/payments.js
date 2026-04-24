@@ -206,14 +206,27 @@ router.post('/verify', authRequired, validate([
       status: 'confirmed',
     });
 
-    await Ride.findByIdAndUpdate(ride_id, { $inc: { available_seats: -seatCount } });
+    const updatedRide = await Ride.findOneAndUpdate(
+      { _id: ride_id, available_seats: { $gte: seatCount } },
+      { $inc: { available_seats: -seatCount } },
+      { new: true }
+    );
 
+    if (!updatedRide) {
+      // If the atomic update fails, it means seats ran out exactly during payment processing.
+      // Clean up the booking we just created since the ride is full.
+      await Booking.findByIdAndDelete(booking._id);
+      const err = new Error('Ride is full. Seats are no longer available.');
+      err.statusCode = 400;
+      return next(err);
+    }
     await Payment.create({
       booking_id: booking._id, user_id: userId, razorpay_order_id, razorpay_payment_id, razorpay_signature,
       amount: totalAmount, commission_amount: commission, driver_earning: driverEarning, currency: 'INR', status: 'paid',
     });
 
     await User.findByIdAndUpdate(ride.driver_id, { $inc: { wallet_balance: driverEarning } });
+    await User.findByIdAndUpdate(userId, { $inc: { loyalty_points: 50 } });
 
     await WalletTransaction.create({ user_id: ride.driver_id, type: 'credit', amount: parseFloat(driverEarning.toFixed(2)), reason: 'payment_credit', ref_id: booking._id });
 
@@ -274,7 +287,20 @@ router.post('/book-free', authRequired, validate([
       total_amount: 0, commission_amount: 0, driver_earning: 0, payment_status: 'free', status: 'confirmed',
     });
 
-    await Ride.findByIdAndUpdate(rideId, { $inc: { available_seats: -seatCount } });
+    const updatedRide = await Ride.findOneAndUpdate(
+      { _id: rideId, available_seats: { $gte: seatCount } },
+      { $inc: { available_seats: -seatCount } },
+      { new: true }
+    );
+
+    if (!updatedRide) {
+      await Booking.findByIdAndDelete(booking._id);
+      const err = new Error('Ride is full. Seats are no longer available.');
+      err.statusCode = 400;
+      return next(err);
+    }
+
+    await User.findByIdAndUpdate(userId, { $inc: { loyalty_points: 10 } });
 
     res.status(201).json({ booking, message: 'Free ride booked successfully! 🎉' });
   } catch (err) {

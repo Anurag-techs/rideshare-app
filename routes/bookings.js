@@ -64,6 +64,12 @@ router.put('/:id/cancel', authRequired, async (req, res, next) => {
     await Ride.findByIdAndUpdate(booking.ride_id, {
       $inc: { available_seats: booking.seats_booked },
     });
+    
+    // Penalize user
+    const User = require('../models/User');
+    await User.findByIdAndUpdate(req.user.id, {
+      $inc: { cancellation_count: 1 }
+    });
 
     res.json({ message: 'Booking cancelled.' });
   } catch (err) {
@@ -99,6 +105,64 @@ router.get('/driver', authRequired, async (req, res, next) => {
     });
 
     res.json({ bookings: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/bookings/:id/contact ─────────────────────────────────────────────
+router.get('/:id/contact', authRequired, async (req, res, next) => {
+  try {
+    const booking = await Booking.findById(req.params.id)
+      .populate('ride_id')
+      .populate('passenger_id', 'name phone')
+      .populate({ path: 'ride_id', populate: { path: 'driver_id', select: 'name phone email' } });
+
+    if (!booking) {
+      const err = new Error('Booking not found.');
+      err.statusCode = 404;
+      return next(err);
+    }
+
+    if (booking.status !== 'confirmed') {
+      const err = new Error('Contact details unavailable. Booking is not confirmed.');
+      err.statusCode = 403;
+      return next(err);
+    }
+
+    const userId = req.user.id;
+    const isPassenger = String(booking.passenger_id._id) === String(userId);
+    const isDriver = String(booking.ride_id.driver_id._id) === String(userId);
+
+    if (!isPassenger && !isDriver) {
+      const err = new Error('Unauthorized to view contact details for this booking.');
+      err.statusCode = 403;
+      return next(err);
+    }
+
+    if (isPassenger) {
+      return res.json({ 
+        success: true, 
+        role: 'passenger',
+        contact: {
+          name: booking.ride_id.driver_id.name,
+          phone: booking.ride_id.driver_id.phone,
+          email: booking.ride_id.driver_id.email
+        }
+      });
+    }
+
+    if (isDriver) {
+      return res.json({ 
+        success: true, 
+        role: 'driver',
+        contact: {
+          name: booking.passenger_id.name,
+          phone: booking.passenger_id.phone
+        }
+      });
+    }
+
   } catch (err) {
     next(err);
   }

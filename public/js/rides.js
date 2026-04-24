@@ -9,6 +9,17 @@ const Rides = {
   _currentRides: [],
   _currentSort: 'balanced',
 
+  
+  loadRecentSearches() {
+    try {
+      const searches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
+      const container = document.getElementById('recentSearches');
+      if (container && searches.length > 0) {
+        container.innerHTML = searches.map(s => `<button class="btn btn-outline btn-sm" onclick="document.getElementById('searchFrom').value='${s.from||''}';document.getElementById('searchTo').value='${s.to||''}';Rides.search();">🕒 ${s.from} → ${s.to}</button>`).join('');
+      }
+    } catch {}
+  },
+
   init() {
     document.getElementById('searchForm')?.addEventListener('submit', e => { e.preventDefault(); this.search(); });
     document.getElementById('createRideForm')?.addEventListener('submit', e => { e.preventDefault(); this.create(); });
@@ -105,6 +116,40 @@ const Rides = {
   },
 
   // ── Create Ride Map ───────────────────────────────────────────────────────
+
+  loadRecentRide() {
+    try {
+      const r = JSON.parse(localStorage.getItem('recentRide'));
+      if (r && r.from && r.to) {
+        const container = document.getElementById('quickOfferContainer');
+        if (container) {
+          container.innerHTML = `<button type="button" class="btn btn-outline" style="width:100%; border-radius:12px; font-weight:600; justify-content:flex-start;" onclick="Rides.prefillRide('${r.from}', ${r.fromLat}, ${r.fromLng}, '${r.to}', ${r.toLat}, ${r.toLng}, '${r.car}', ${r.seats}, ${r.price})">⚡ Quick Fill: ${Rides.esc(r.from)} → ${Rides.esc(r.to)}</button>`;
+        }
+      }
+    } catch {}
+  },
+  
+  prefillRide(from, fromLat, fromLng, to, toLat, toLng, car, seats, price) {
+    document.getElementById('rideFrom').value = from;
+    document.getElementById('rideFromLat').value = fromLat;
+    document.getElementById('rideFromLng').value = fromLng;
+    document.getElementById('rideTo').value = to;
+    document.getElementById('rideToLat').value = toLat;
+    document.getElementById('rideToLng').value = toLng;
+    document.getElementById('rideCar').value = car || '';
+    document.getElementById('rideSeats').value = seats || 3;
+    document.getElementById('ridePrice').value = price || 0;
+    
+    if (this.mapInstance) {
+      if (this.fromMarker) this.mapInstance.removeLayer(this.fromMarker);
+      if (this.toMarker) this.mapInstance.removeLayer(this.toMarker);
+      this.fromMarker = Maps.addMarker(this.mapInstance, fromLat, fromLng, '📍 Pickup: ' + from, 'blue');
+      this.toMarker = Maps.addMarker(this.mapInstance, toLat, toLng, '🏁 Destination: ' + to, 'cyan');
+      Maps.drawRoute(this.mapInstance, [fromLat, fromLng], [toLat, toLng]);
+    }
+    
+    App.showToast('Fields pre-filled!', 'info');
+  },
   initCreateMap() {
     this.fromMarker = null; this.toMarker = null; this.clickMode = 'from';
     const step = document.getElementById('mapStep');
@@ -210,7 +255,17 @@ const Rides = {
     const sort     = document.getElementById('searchSort').value;
     const maxPrice = document.getElementById('searchMaxPrice').value;
 
+
     let qs = `?sort=${sort}`;
+    if (from || to) {
+      try {
+        let searches = JSON.parse(localStorage.getItem('recentSearches') || '[]');
+        searches.unshift({from, to});
+        searches = searches.filter((s, i, a) => a.findIndex(t => t.from === s.from && t.to === s.to) === i).slice(0, 5);
+        localStorage.setItem('recentSearches', JSON.stringify(searches));
+        this.loadRecentSearches();
+      } catch {}
+    }
     if (from)     qs += `&from=${encodeURIComponent(from)}`;
     if (to)       qs += `&to=${encodeURIComponent(to)}`;
     if (date)     qs += `&date=${date}`;
@@ -328,7 +383,8 @@ const Rides = {
       const priceStr = r.price_per_seat > 0 ? `₹${r.price_per_seat}` : 'Free';
       const isOwner       = API.getUser()?.id === r.driver_id;
       const isLoggedIn    = API.isLoggedIn();
-      const alreadyBooked = bookings.some(b => b.passenger_id === API.getUser()?.id && b.status !== 'cancelled');
+      const myBooking     = bookings.find(b => b.passenger_id === API.getUser()?.id && b.status !== 'cancelled');
+      const alreadyBooked = !!myBooking;
 
       container.innerHTML = `
         <div class="ride-detail">
@@ -352,14 +408,15 @@ const Rides = {
               <div>
                 <div style="font-weight:600;">${this.esc(r.driver_name)} ${(r.driver_completed_rides > 0 || r.driver_rating > 0) ? '<span class="text-success" title="Verified Driver">✅ Verified</span>' : ''}</div>
                 <div class="text-secondary" style="font-size:0.85rem;">${r.driver_rating>0?`⭐ ${r.driver_rating} (${r.driver_total_ratings} reviews)`:'New driver'} ${r.driver_completed_rides > 0 ? `• ${r.driver_completed_rides} rides completed` : ''}</div>
-                ${r.driver_phone?`<div class="text-muted" style="font-size:0.85rem;">📞 ${r.driver_phone}</div>`:''}
+                ${!alreadyBooked && !isOwner ? '<div class="text-muted" style="font-size:0.8rem;margin-top:4px;display:flex;align-items:center;gap:4px;"><i data-lucide="lock" style="width:12px;height:12px;"></i> Contact details available after booking</div>' : ''}
+                ${alreadyBooked ? `<div id="contactReveal-${r.id}" style="margin-top:4px;"><button class="btn btn-ghost btn-sm" onclick="Rides.revealContact('${myBooking.id}', 'contactReveal-${r.id}')" style="padding:4px 8px;font-size:0.8rem;">📞 Reveal Driver Contact</button></div>` : ''}
               </div>
             </div>
             <div class="ride-detail-actions">
-              ${!isOwner&&isLoggedIn&&!alreadyBooked&&r.available_seats>0&&r.status==='active'?`<button class="btn btn-primary btn-lg" id="bookRideBtn" data-ride="${r.id}">🎫 Book This Ride</button>`:''}
-              ${alreadyBooked?'<span class="seats-badge" style="font-size:1rem;padding:10px 20px;">✅ Already Booked</span>':''}
-              ${!isLoggedIn?'<a href="#/login" class="btn btn-primary btn-lg">Log in to Book</a>':''}
-              ${isOwner?`<button class="btn btn-danger" id="cancelRideBtn" data-ride="${r.id}">Cancel Ride</button>`:''}
+              ${!isOwner&&isLoggedIn&&!alreadyBooked&&r.available_seats>0&&r.status==='active'?`<button class="btn btn-primary btn-lg" id="bookRideBtn" data-ride="${r.id}" style="width:100%;"><span class="btn-text">🎫 Book Now</span></button>`:''}
+              ${alreadyBooked?'<span class="seats-badge" style="font-size:1rem;padding:10px 20px;width:100%;text-align:center;">✅ Confirmed</span>':''}
+              ${!isLoggedIn?'<a href="#/login" class="btn btn-primary btn-lg" style="width:100%;text-align:center;">Log in to Book</a>':''}
+              ${isOwner?`<button class="btn btn-danger" id="cancelRideBtn" data-ride="${r.id}" style="width:100%;">Cancel Ride</button>`:''}
             </div>
           </div>
           ${isOwner&&bookings.length>0?`
@@ -367,7 +424,10 @@ const Rides = {
               <h3 style="margin-bottom:16px;">Passengers (${bookings.length})</h3>
               ${bookings.map(b=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--glass-border);">
                 <span>${this.esc(b.passenger_name)} (${b.seats_booked} seat${b.seats_booked>1?'s':''})</span>
-                <span class="seats-badge">${b.payment_status||b.status}</span>
+                <span style="display:flex;align-items:center;gap:8px;">
+                  <button class="btn btn-outline btn-sm" onclick="Chat.open('${b.id}')">💬 Chat</button>
+                  <span class="seats-badge">${b.payment_status||b.status}</span>
+                </span>
               </div>`).join('')}
             </div>`:''}
         </div>`;
@@ -389,6 +449,27 @@ const Rides = {
       }
     } catch (err) {
       container.innerHTML = `<div class="empty-state"><div class="empty-icon">❌</div><h3>Ride not found</h3></div>`;
+    }
+  },
+
+  async revealContact(bookingId, containerId) {
+    try {
+      const btn = document.querySelector(`#${containerId} button`);
+      if (btn) btn.textContent = 'Loading...';
+      const data = await API.get(`/bookings/${bookingId}/contact`);
+      if (data.success) {
+        document.getElementById(containerId).innerHTML = `
+          <div style="background:rgba(16,185,129,0.1);color:var(--success);padding:8px 12px;border-radius:6px;font-size:0.85rem;margin-top:4px;display:inline-block;">
+            <div style="font-weight:600;margin-bottom:2px;">Contact Information</div>
+            <div>📞 ${data.contact.phone}</div>
+            ${data.contact.email ? `<div>✉️ ${data.contact.email}</div>` : ''}
+          </div>
+        `;
+      }
+    } catch (err) {
+      App.showToast(err.message, 'error');
+      const btn = document.querySelector(`#${containerId} button`);
+      if (btn) btn.textContent = '📞 Reveal Driver Contact';
     }
   },
 

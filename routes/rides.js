@@ -180,7 +180,7 @@ router.get('/my/driver', authRequired, async (req, res, next) => {
 router.get('/:id', authOptional, async (req, res, next) => {
   try {
     const ride = await Ride.findById(req.params.id)
-      .populate('driver_id', 'name email phone profile_photo avg_rating total_ratings')
+      .populate('driver_id', 'name profile_photo avg_rating total_ratings')
       .populate('car_id', 'model color license_plate car_image')
       .lean();
 
@@ -193,8 +193,6 @@ router.get('/:id', authOptional, async (req, res, next) => {
     const obj = { ...ride };
     obj.id                   = obj._id;
     obj.driver_name          = obj.driver_id?.name;
-    obj.driver_email         = obj.driver_id?.email;
-    obj.driver_phone         = obj.driver_id?.phone;
     obj.driver_photo         = obj.driver_id?.profile_photo;
     obj.driver_rating        = obj.driver_id?.avg_rating;
     obj.driver_total_ratings = obj.driver_id?.total_ratings;

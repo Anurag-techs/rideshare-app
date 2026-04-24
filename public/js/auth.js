@@ -82,7 +82,7 @@ const Auth = {
         const dateEl = document.getElementById('profileJoinDate');
         if (dateEl) dateEl.innerHTML = `Joined ${joinDate} <span style="color:var(--success);margin-left:4px;">✓ Verified</span>`;
       }
-      this.loadRatings(u.id);
+      this.loadRatings(u.id); const pointsEl = document.getElementById('profilePoints'); if (pointsEl) pointsEl.textContent = (u.loyalty_points || 0) + ' Points';
     } catch (err) { App.showToast(err.message, 'error'); }
   },
 
